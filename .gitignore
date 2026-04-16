@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+real-did/state.json
+real-did/ahmet-cuzdani-diploma.json
+real-did/bankaya-gonderilen-vp.json
+real-did/itu-did-document.json
+real-did/ahmet-did-document.json

@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSI & Hyperledger Indy — İnteraktif Öğrenme Platformu</title>
+    <meta name="description" content="Self-Sovereign Identity ve Hyperledger Indy kavramlarını interaktif olarak öğrenin: DID, VC, VP, Public Key, Private Key ve daha fazlası.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Floating particles background -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <span class="nav-icon">🔐</span>
+            <span class="nav-title">SSI Academy</span>
+        </div>
+        <div class="nav-links">
+            <a href="#concepts" class="nav-link active" data-section="concepts">Kavramlar</a>
+            <a href="#demo" class="nav-link" data-section="demo">Canlı Demo</a>
+            <a href="#flow" class="nav-link" data-section="flow">Akış</a>
+            <a href="#quiz" class="nav-link" data-section="quiz">Quiz</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">Hyperledger Indy & SSI</div>
+            <h1 class="hero-title">
+                <span class="gradient-text">Self-Sovereign Identity</span>
+                <br>Kendi Kendine Egemen Kimlik
+            </h1>
+            <p class="hero-subtitle">
+                DID, Verifiable Credential, Public Key ve tüm kavramları
+                <strong>interaktif olarak</strong> öğren
+            </p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" onclick="scrollToSection('concepts')">
+                    <span>🚀</span> Öğrenmeye Başla
+                </button>
+                <button class="btn btn-secondary" onclick="scrollToSection('demo')">
+                    <span>⚡</span> Canlı Demo
+                </button>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="hero-card card-did">
+                <div class="card-icon">🆔</div>
+                <div class="card-label">DID</div>
+            </div>
+            <div class="hero-card card-vc">
+                <div class="card-icon">🎫</div>
+                <div class="card-label">VC</div>
+            </div>
+            <div class="hero-card card-key">
+                <div class="card-icon">🔑</div>
+                <div class="card-label">Keys</div>
+            </div>
+            <div class="connection-lines"></div>
+        </div>
+    </header>
+
+    <!-- Concepts Section -->
+    <section id="concepts" class="section">
+        <div class="section-header">
+            <h2 class="section-title">📚 Temel Kavramlar</h2>
+            <p class="section-subtitle">Her kartı tıklayarak detaylı açıklamayı gör</p>
+        </div>
+
+        <div class="concepts-grid">
+            <!-- DID Card -->
+            <div class="concept-card" id="concept-did" onclick="toggleConcept('did')">
+                <div class="concept-header">
+                    <div class="concept-icon">🆔</div>
+                    <h3>DID</h3>
+                    <span class="concept-badge">Decentralized Identifier</span>
+                </div>
+                <p class="concept-brief">Merkeziyetsiz Tanımlayıcı — Seni dijital dünyada temsil eden benzersiz adres</p>
+                <div class="concept-detail" id="detail-did">
+                    <div class="detail-analogy">
+                        <strong>🏠 Gerçek Hayat:</strong> TC Kimlik Numarası gibi, ama devlet değil <em>sen kendin</em> oluşturursun!
+                    </div>
+                    <div class="did-anatomy">
+                        <code class="did-example">
+                            <span class="did-part did-scheme" data-tooltip="Her zaman 'did' ile başlar">did</span><span class="did-separator">:</span><span class="did-part did-method" data-tooltip="Hangi sistem? (Indy)">indy</span><span class="did-separator">:</span><span class="did-part did-network" data-tooltip="Hangi ağ?">sovrin</span><span class="did-separator">:</span><span class="did-part did-id" data-tooltip="Senin benzersiz ID'n">WRfXPg8dantKVubE3HX8pw</span>
+                        </code>
+                    </div>
+                    <ul class="detail-features">
+                        <li>✅ Kendin oluşturursun</li>
+                        <li>✅ Merkezi otoriteye bağlı değil</li>
+                        <li>✅ Birden fazla DID'in olabilir</li>
+                        <li>✅ Kalıcı ve değiştirilemez</li>
+                    </ul>
+                </div>
+                <div class="concept-expand">
+                    <span class="expand-icon">▼</span>
+                </div>
+            </div>
+
+            <!-- Key Pair Card -->
+            <div class="concept-card" id="concept-keys" onclick="toggleConcept('keys')">
+                <div class="concept-header">
+                    <div class="concept-icon">🔑</div>
+                    <h3>Anahtar Çifti</h3>
+                    <span class="concept-badge">Public & Private Key</span>
+                </div>
+                <p class="concept-brief">Kriptografik anahtar çifti — Dijital kimliğinin temeli</p>
+                <div class="concept-detail" id="detail-keys">
+                    <div class="key-pair-visual">
+                        <div class="key-box key-private">
+                            <div class="key-icon">🔐</div>
+                            <h4>Private Key</h4>
+                            <p>Gizli Anahtar</p>
+                            <ul>
+                                <li>Sadece sende</li>
+                                <li>İmza atmak için</li>
+                                <li>KESİNLİKLE paylaşılmaz</li>
+                            </ul>
+                        </div>
+                        <div class="key-arrow">
+                            <div class="arrow-line"></div>
+                            <span>Matematiksel İlişki</span>
+                        </div>
+                        <div class="key-box key-public">
+                            <div class="key-icon">🔓</div>
+                            <h4>Public Key</h4>
+                            <p>Açık Anahtar</p>
+                            <ul>
+                                <li>Herkesle paylaşılır</li>
+                                <li>İmza doğrulamak için</li>
+                                <li>DID Document'te yayınlanır</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="concept-expand">
+                    <span class="expand-icon">▼</span>
+                </div>
+            </div>
+
+            <!-- Verkey Card -->
+            <div class="concept-card" id="concept-verkey" onclick="toggleConcept('verkey')">
+                <div class="concept-header">
+                    <div class="concept-icon">✅</div>
+                    <h3>Verification Key</h3>
+                    <span class="concept-badge">verkey</span>
+                </div>
+                <p class="concept-brief">Public Key'in Indy'deki özel adı — Doğrulama Anahtarı</p>
+                <div class="concept-detail" id="detail-verkey">
+                    <div class="detail-analogy">
+                        <strong>💡 Basitçe:</strong> verkey = public key. Indy ekosisteminde "verification key" olarak adlandırılır.
+                    </div>
+                    <div class="verkey-comparison">
+                        <div class="comparison-item">
+                            <span class="comp-label">Genel Terim:</span>
+                            <code>Public Key</code>
+                        </div>
+                        <div class="comparison-arrow">═══ aynı şey ═══</div>
+                        <div class="comparison-item">
+                            <span class="comp-label">Indy Terimi:</span>
+                            <code>Verification Key (verkey)</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="concept-expand">
+                    <span class="expand-icon">▼</span>
+                </div>
+            </div>
+
+            <!-- DID Document Card -->
+            <div class="concept-card" id="concept-diddoc" onclick="toggleConcept('diddoc')">
+                <div class="concept-header">
+                    <div class="concept-icon">📄</div>
+                    <h3>DID Document</h3>
+                    <span class="concept-badge">DID Belgesi</span>
+                </div>
+                <p class="concept-brief">DID'in arkasındaki bilgileri içeren JSON belgesi — Dijital kartvizit</p>
+                <div class="concept-detail" id="detail-diddoc">
+                    <div class="detail-analogy">
+                        <strong>🏠 Gerçek Hayat:</strong> Kartvizit gibi düşün — ama kriptografik olarak doğrulanabilir.
+                    </div>
+                    <pre class="json-display"><code>{
+  "<span class="json-key">@context</span>": "<span class="json-str">https://w3id.org/did/v1</span>",
+  "<span class="json-key">id</span>": "<span class="json-str">did:indy:sovrin:ABC123</span>",
+  "<span class="json-key">verificationMethod</span>": [{
+    "<span class="json-key">type</span>": "<span class="json-str">Ed25519VerificationKey2018</span>",
+    "<span class="json-key">publicKeyBase58</span>": "<span class="json-str">CnEDk9Hr...</span>"
+  }],
+  "<span class="json-key">service</span>": [{
+    "<span class="json-key">type</span>": "<span class="json-str">AgentService</span>",
+    "<span class="json-key">serviceEndpoint</span>": "<span class="json-str">https://agent.example.com</span>"
+  }]
+}</code></pre>
+                </div>
+                <div class="concept-expand">
+                    <span class="expand-icon">▼</span>
+                </div>
+            </div>
+
+            <!-- VC Card -->
+            <div class="concept-card" id="concept-vc" onclick="toggleConcept('vc')">
+                <div class="concept-header">
+                    <div class="concept-icon">🎫</div>
+                    <h3>Verifiable Credential</h3>
+                    <span class="concept-badge">VC — Doğrulanabilir Belge</span>
+                </div>
+                <p class="concept-brief">Dijital diploma, ehliyet, sertifika — Kriptografik olarak imzalanmış belge</p>
+                <div class="concept-detail" id="detail-vc">
+                    <div class="vc-examples">
+                        <div class="vc-example-item">🎓 Diploma</div>
+                        <div class="vc-example-item">🪪 Ehliyet</div>
+                        <div class="vc-example-item">💼 İş Sözleşmesi</div>
+                        <div class="vc-example-item">🏥 Sağlık Kartı</div>
+                    </div>
+                    <div class="vc-structure">
+                        <div class="vc-part"><strong>Issuer:</strong> Kim verdi?</div>
+                        <div class="vc-part"><strong>Subject:</strong> Kime verildi?</div>
+                        <div class="vc-part"><strong>Claims:</strong> Ne bilgisi var?</div>
+                        <div class="vc-part"><strong>Proof:</strong> Dijital imza</div>
+                    </div>
+                </div>
+                <div class="concept-expand">
+                    <span class="expand-icon">▼</span>
+                </div>
+            </div>
+
+            <!-- VP Card -->
+            <div class="concept-card" id="concept-vp" onclick="toggleConcept('vp')">
+                <div class="concept-header">
+                    <div class="concept-icon">📨</div>
+                    <h3>Verifiable Presentation</h3>
+                    <span class="concept-badge">VP — Doğrulanabilir Sunum</span>
+                </div>
+                <p class="concept-brief">Sadece gerekli bilgiyi paylaşma — Zero-Knowledge Proof</p>
+                <div class="concept-detail" id="detail-vp">
+                    <div class="detail-analogy">
+                        <strong>🎯 Örnek:</strong> Banka yaşını soruyor. Tüm kimliğini değil, sadece "18 yaşından büyüğüm: EVET" bilgisini paylaşırsın!
+                    </div>
+                    <div class="vp-visual">
+                        <div class="vp-full">
+                            <h4>Tam VC</h4>
+                            <div class="vp-field">Ad: Ahmet Yılmaz</div>
+                            <div class="vp-field">Doğum: 1995-05-15</div>
+                            <div class="vp-field">TC: 12345678901</div>
+                            <div class="vp-field">Adres: İstanbul</div>
+                        </div>
+                        <div class="vp-arrow">→<br><small>Selective<br>Disclosure</small></div>
+                        <div class="vp-partial">
+                            <h4>Sunum (VP)</h4>
+                            <div class="vp-field vp-shared">18+ mi?: ✅ EVET</div>
+                            <div class="vp-field vp-hidden">Diğer bilgiler gizli</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="concept-expand">
+                    <span class="expand-icon">▼</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Demo Section -->
+    <section id="demo" class="section section-dark">
+        <div class="section-header">
+            <h2 class="section-title">⚡ Canlı Demo</h2>
+            <p class="section-subtitle">Butonlara basarak SSI sürecini adım adım dene</p>
+        </div>
+
+        <div class="demo-container">
+            <!-- Step Tracker -->
+            <div class="step-tracker">
+                <div class="step active" id="step-1-indicator">
+                    <div class="step-number">1</div>
+                    <div class="step-label">DID Oluştur</div>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" id="step-2-indicator">
+                    <div class="step-number">2</div>
+                    <div class="step-label">VC Ver</div>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" id="step-3-indicator">
+                    <div class="step-number">3</div>
+                    <div class="step-label">VP Sun</div>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step" id="step-4-indicator">
+                    <div class="step-number">4</div>
+                    <div class="step-label">Doğrula</div>
+                </div>
+            </div>
+
+            <!-- Demo Panels -->
+            <div class="demo-panels">
+                <!-- Actors -->
+                <div class="demo-actors">
+                    <div class="actor actor-issuer" id="actor-issuer">
+                        <div class="actor-avatar">🏛️</div>
+                        <h3>İTÜ</h3>
+                        <p class="actor-role">Issuer (Veren)</p>
+                        <div class="actor-did" id="issuer-did">DID henüz yok</div>
+                    </div>
+
+                    <div class="actor actor-holder" id="actor-holder">
+                        <div class="actor-avatar">👤</div>
+                        <h3>Ahmet</h3>
+                        <p class="actor-role">Holder (Tutan)</p>
+                        <div class="actor-did" id="holder-did">DID henüz yok</div>
+                        <div class="wallet" id="wallet">
+                            <div class="wallet-label">📱 Cüzdan</div>
+                            <div class="wallet-content" id="wallet-content">Boş</div>
+                        </div>
+                    </div>
+
+                    <div class="actor actor-verifier" id="actor-verifier">
+                        <div class="actor-avatar">🏢</div>
+                        <h3>Garanti Bankası</h3>
+                        <p class="actor-role">Verifier (Doğrulayan)</p>
+                        <div class="actor-did" id="verifier-did">DID henüz yok</div>
+                    </div>
+                </div>
+
+                <!-- Blockchain -->
+                <div class="blockchain" id="blockchain">
+                    <div class="blockchain-header">
+                        <span class="chain-icon">⛓️</span>
+                        <h3>Hyperledger Indy Ledger</h3>
+                    </div>
+                    <div class="blockchain-blocks" id="blockchain-blocks">
+                        <div class="block genesis-block">
+                            <div class="block-label">Genesis</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="demo-actions">
+                    <button class="btn btn-action" id="btn-step-1" onclick="demoStep1()">
+                        <span class="btn-step">Adım 1</span>
+                        <span class="btn-text">🆔 DID'leri Oluştur</span>
+                    </button>
+                    <button class="btn btn-action" id="btn-step-2" onclick="demoStep2()" disabled>
+                        <span class="btn-step">Adım 2</span>
+                        <span class="btn-text">🎫 Diploma VC'si Ver</span>
+                    </button>
+                    <button class="btn btn-action" id="btn-step-3" onclick="demoStep3()" disabled>
+                        <span class="btn-step">Adım 3</span>
+                        <span class="btn-text">📨 VP Oluştur & Sun</span>
+                    </button>
+                    <button class="btn btn-action" id="btn-step-4" onclick="demoStep4()" disabled>
+                        <span class="btn-step">Adım 4</span>
+                        <span class="btn-text">✅ Doğrula</span>
+                    </button>
+                    <button class="btn btn-reset" onclick="resetDemo()">
+                        🔄 Sıfırla
+                    </button>
+                </div>
+
+                <!-- Output Console -->
+                <div class="console" id="console">
+                    <div class="console-header">
+                        <span class="console-dot red"></span>
+                        <span class="console-dot yellow"></span>
+                        <span class="console-dot green"></span>
+                        <span class="console-title">Konsol Çıktısı</span>
+                    </div>
+                    <div class="console-body" id="console-body">
+                        <div class="console-line">
+                            <span class="console-prompt">$</span>
+                            <span class="console-text">SSI Demo başlatıldı. "Adım 1" butonuna bas.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Flow Diagram Section -->
+    <section id="flow" class="section">
+        <div class="section-header">
+            <h2 class="section-title">🔄 SSI Akış Diyagramı</h2>
+            <p class="section-subtitle">Tüm sürecin bir bakışta görüntüsü</p>
+        </div>
+
+        <div class="flow-container">
+            <div class="flow-diagram">
+                <!-- Issuer Column -->
+                <div class="flow-column">
+                    <div class="flow-actor-header issuer-bg">
+                        <span>🏛️</span>
+                        <h3>Issuer</h3>
+                        <p>Veren Kurum</p>
+                    </div>
+                    <div class="flow-steps">
+                        <div class="flow-step" data-flow="1">
+                            <div class="flow-step-num">1</div>
+                            <p>DID oluştur ve blockchain'e yaz</p>
+                        </div>
+                        <div class="flow-step" data-flow="2">
+                            <div class="flow-step-num">2</div>
+                            <p>Schema tanımla (diploma alanları)</p>
+                        </div>
+                        <div class="flow-step" data-flow="3">
+                            <div class="flow-step-num">3</div>
+                            <p>Credential Definition yayınla</p>
+                        </div>
+                        <div class="flow-step" data-flow="4">
+                            <div class="flow-step-num">4</div>
+                            <p>VC oluştur ve imzala, Holder'a gönder</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Holder Column -->
+                <div class="flow-column">
+                    <div class="flow-actor-header holder-bg">
+                        <span>👤</span>
+                        <h3>Holder</h3>
+                        <p>Sen</p>
+                    </div>
+                    <div class="flow-steps">
+                        <div class="flow-step" data-flow="5">
+                            <div class="flow-step-num">5</div>
+                            <p>DID oluştur</p>
+                        </div>
+                        <div class="flow-step" data-flow="6">
+                            <div class="flow-step-num">6</div>
+                            <p>VC'yi al ve cüzdanda sakla</p>
+                        </div>
+                        <div class="flow-step" data-flow="7">
+                            <div class="flow-step-num">7</div>
+                            <p>Verifier istediğinde VP oluştur</p>
+                        </div>
+                        <div class="flow-step" data-flow="8">
+                            <div class="flow-step-num">8</div>
+                            <p>Sadece gereken bilgiyi paylaş</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Verifier Column -->
+                <div class="flow-column">
+                    <div class="flow-actor-header verifier-bg">
+                        <span>🏢</span>
+                        <h3>Verifier</h3>
+                        <p>Doğrulayıcı</p>
+                    </div>
+                    <div class="flow-steps">
+                        <div class="flow-step" data-flow="9">
+                            <div class="flow-step-num">9</div>
+                            <p>VP'yi al</p>
+                        </div>
+                        <div class="flow-step" data-flow="10">
+                            <div class="flow-step-num">10</div>
+                            <p>Blockchain'den Issuer DID'ini kontrol et</p>
+                        </div>
+                        <div class="flow-step" data-flow="11">
+                            <div class="flow-step-num">11</div>
+                            <p>İmzayı doğrula</p>
+                        </div>
+                        <div class="flow-step" data-flow="12">
+                            <div class="flow-step-num">12</div>
+                            <p>✅ Credential geçerli!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- What's on blockchain -->
+            <div class="blockchain-info">
+                <h3>⛓️ Blockchain'de Ne Saklanır?</h3>
+                <div class="blockchain-comparison">
+                    <div class="bc-yes">
+                        <h4>✅ Blockchain'de VAR</h4>
+                        <ul>
+                            <li>DID'ler</li>
+                            <li>DID Document'ler</li>
+                            <li>Schema tanımları</li>
+                            <li>Credential Definition'lar</li>
+                            <li>Revocation Registry</li>
+                        </ul>
+                    </div>
+                    <div class="bc-no">
+                        <h4>❌ Blockchain'de YOK</h4>
+                        <ul>
+                            <li>Kişisel bilgiler</li>
+                            <li>Credential içerikleri</li>
+                            <li>İsim, adres, TC no</li>
+                            <li>Fotoğraflar</li>
+                            <li>Private key'ler</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quiz Section -->
+    <section id="quiz" class="section section-dark">
+        <div class="section-header">
+            <h2 class="section-title">🧠 Bilgini Test Et</h2>
+            <p class="section-subtitle">5 soruda ne kadar öğrendiğini gör</p>
+        </div>
+
+        <div class="quiz-container" id="quiz-container">
+            <div class="quiz-progress">
+                <div class="quiz-progress-bar" id="quiz-progress-bar" style="width: 0%"></div>
+            </div>
+            <div class="quiz-score" id="quiz-score">Soru <span id="q-current">1</span>/5</div>
+
+            <div class="quiz-question" id="quiz-question">
+                <!-- Filled by JS -->
+            </div>
+            <div class="quiz-options" id="quiz-options">
+                <!-- Filled by JS -->
+            </div>
+            <div class="quiz-feedback" id="quiz-feedback"></div>
+            <button class="btn btn-primary quiz-next" id="quiz-next" onclick="nextQuestion()" style="display:none">
+                Sonraki Soru →
+            </button>
+
+            <div class="quiz-result" id="quiz-result" style="display:none">
+                <div class="result-icon" id="result-icon"></div>
+                <h3 id="result-title"></h3>
+                <p id="result-text"></p>
+                <button class="btn btn-primary" onclick="restartQuiz()">🔄 Tekrar Dene</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>🔐 SSI Academy — Hyperledger Indy Öğrenme Platformu</p>
+        <p class="footer-sub">Eğitim amaçlıdır. Gerçek bir blockchain bağlantısı içermez.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
