@@ -1,7 +1,26 @@
+# --- Node.JS Demoları ---
 node_modules/
-.DS_Store
 real-did/state.json
 real-did/ahmet-cuzdani-diploma.json
 real-did/bankaya-gonderilen-vp.json
 real-did/itu-did-document.json
 real-did/ahmet-did-document.json
+
+# --- Python ve Nixar SDK ---
+venv/
+__pycache__/
+*.dylib
+*.dll
+*.so
+nixar-backend/nixar_api_apple_silicon/
+nixar-backend/nixar_api_python/.tmp/
+nixar-backend/nixar_api_python/trustee/
+nixar-backend/nixar_api_python/itu_uni*/
+nixar-backend/nixar_api_python/ahmet_ogrenci*/
+nixar-backend/nixar_api_python/ziraat_bank*/
+
+# --- Von Network (Indy Ledger Local Testnet) ---
+von-network/
+
+# --- Mac OS ve Sistem Dosyaları ---
+.DS_Store

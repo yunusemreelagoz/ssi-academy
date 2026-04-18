@@ -1,0 +1,6 @@
+/.tmp/
+/my_test.py
+/qc.py
+/.idea/
+/nixar_api_python.iml
+__pycache__
