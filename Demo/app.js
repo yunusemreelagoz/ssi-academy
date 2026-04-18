@@ -37,7 +37,7 @@ function generateKeyPair() {
 function createParticles() {
     const container = document.getElementById('particles');
     const count = 30;
-    
+
     for (let i = 0; i < count; i++) {
         const particle = document.createElement('div');
         particle.className = 'particle';
@@ -46,7 +46,7 @@ function createParticles() {
         particle.style.animationDelay = (Math.random() * 20) + 's';
         particle.style.width = (2 + Math.random() * 4) + 'px';
         particle.style.height = particle.style.width;
-        
+
         const colors = [
             'rgba(139, 92, 246, 0.2)',
             'rgba(59, 130, 246, 0.15)',
@@ -54,7 +54,7 @@ function createParticles() {
             'rgba(6, 182, 212, 0.2)'
         ];
         particle.style.background = colors[Math.floor(Math.random() * colors.length)];
-        
+
         container.appendChild(particle);
     }
 }
@@ -64,7 +64,7 @@ function initNavbar() {
     const navbar = document.getElementById('navbar');
     const sections = document.querySelectorAll('.section');
     const navLinks = document.querySelectorAll('.nav-link');
-    
+
     window.addEventListener('scroll', () => {
         // Scrolled class
         if (window.scrollY > 50) {
@@ -72,7 +72,7 @@ function initNavbar() {
         } else {
             navbar.classList.remove('scrolled');
         }
-        
+
         // Active section
         let current = '';
         sections.forEach(section => {
@@ -81,7 +81,7 @@ function initNavbar() {
                 current = section.getAttribute('id');
             }
         });
-        
+
         navLinks.forEach(link => {
             link.classList.remove('active');
             if (link.getAttribute('data-section') === current) {
@@ -99,10 +99,10 @@ function scrollToSection(id) {
 function toggleConcept(id) {
     const card = document.getElementById(`concept-${id}`);
     const isExpanded = card.classList.contains('expanded');
-    
+
     // Close all
     document.querySelectorAll('.concept-card').forEach(c => c.classList.remove('expanded'));
-    
+
     // Toggle current
     if (!isExpanded) {
         card.classList.add('expanded');
@@ -137,14 +137,14 @@ function updateStepIndicators(step) {
     for (let i = 1; i <= 4; i++) {
         const indicator = document.getElementById(`step-${i}-indicator`);
         indicator.classList.remove('active', 'completed');
-        
+
         if (i < step) {
             indicator.classList.add('completed');
         } else if (i === step) {
             indicator.classList.add('active');
         }
     }
-    
+
     // Connectors
     const connectors = document.querySelectorAll('.step-connector');
     connectors.forEach((c, i) => {
@@ -171,10 +171,10 @@ function addBlock(label, data) {
 async function demoStep1() {
     const btn = document.getElementById('btn-step-1');
     btn.disabled = true;
-    
+
     consolePrint('─── ADIM 1: DID Oluşturma ───', 'info');
     await sleep(300);
-    
+
     // Generate Issuer DID
     consolePrint('🏛️ İTÜ için anahtar çifti üretiliyor...', 'highlight');
     await sleep(500);
@@ -183,16 +183,16 @@ async function demoStep1() {
     consolePrint(`   Public Key:  ${demoState.issuerKeys.publicKey.substring(0, 20)}...`, 'success');
     consolePrint(`   Verkey:      ${demoState.issuerKeys.verkey.substring(0, 20)}...`, 'success');
     await sleep(400);
-    
+
     demoState.issuerDID = generateDID();
     consolePrint(`   DID: ${demoState.issuerDID}`, 'highlight');
     document.getElementById('issuer-did').textContent = demoState.issuerDID;
     document.getElementById('issuer-did').classList.add('has-did');
     document.getElementById('actor-issuer').classList.add('active');
-    
+
     addBlock('DID: İTÜ', demoState.issuerDID.substring(0, 25) + '...');
     await sleep(600);
-    
+
     // Generate Holder DID
     consolePrint('👤 Ahmet için anahtar çifti üretiliyor...', 'highlight');
     await sleep(500);
@@ -200,40 +200,40 @@ async function demoStep1() {
     consolePrint(`   Private Key: ${demoState.holderKeys.privateKey.substring(0, 20)}... (GİZLİ!)`, 'error');
     consolePrint(`   Public Key:  ${demoState.holderKeys.publicKey.substring(0, 20)}...`, 'success');
     await sleep(400);
-    
+
     demoState.holderDID = generateDID();
     consolePrint(`   DID: ${demoState.holderDID}`, 'highlight');
     document.getElementById('holder-did').textContent = demoState.holderDID;
     document.getElementById('holder-did').classList.add('has-did');
     document.getElementById('actor-holder').classList.add('active');
     await sleep(600);
-    
+
     // Generate Verifier DID
-    consolePrint('🏢 Garanti Bankası için DID oluşturuluyor...', 'highlight');
+    consolePrint('🏢 Ziraat Bankası için DID oluşturuluyor...', 'highlight');
     await sleep(500);
     demoState.verifierDID = generateDID();
     consolePrint(`   DID: ${demoState.verifierDID}`, 'highlight');
     document.getElementById('verifier-did').textContent = demoState.verifierDID;
     document.getElementById('verifier-did').classList.add('has-did');
     document.getElementById('actor-verifier').classList.add('active');
-    
+
     addBlock('DID: Banka', demoState.verifierDID.substring(0, 25) + '...');
     await sleep(400);
-    
+
     // Schema
     consolePrint('📋 "Diploma" Schema\'sı blockchain\'e yazılıyor...', 'warn');
     await sleep(500);
     consolePrint('   Schema: { name: "diploma", version: "1.0", attrs: ["ad", "bolum", "yil", "gpa"] }', 'info');
     addBlock('Schema', 'diploma v1.0');
     await sleep(300);
-    
+
     // Cred Def
     consolePrint('📝 Credential Definition yayınlanıyor...', 'warn');
     await sleep(400);
     addBlock('Cred Def', 'İTÜ → diploma');
-    
+
     consolePrint('✅ Tüm DID\'ler ve Schema oluşturuldu!', 'success');
-    
+
     demoState.step = 1;
     updateStepIndicators(2);
     document.getElementById('btn-step-2').disabled = false;
@@ -243,14 +243,14 @@ async function demoStep1() {
 async function demoStep2() {
     const btn = document.getElementById('btn-step-2');
     btn.disabled = true;
-    
+
     consolePrint('');
     consolePrint('─── ADIM 2: Diploma VC\'si Verme ───', 'info');
     await sleep(300);
-    
+
     consolePrint('🏛️ İTÜ, Ahmet\'e diploma VC\'si oluşturuyor...', 'highlight');
     await sleep(600);
-    
+
     demoState.vc = {
         type: 'UniversityDegreeCredential',
         issuer: demoState.issuerDID,
@@ -267,7 +267,7 @@ async function demoStep2() {
             signatureValue: generateBase58(88)
         }
     };
-    
+
     consolePrint(`   Issuer:  ${demoState.vc.issuer}`, 'info');
     consolePrint(`   Subject: ${demoState.vc.subject}`, 'info');
     consolePrint('   Claims:', 'info');
@@ -276,22 +276,22 @@ async function demoStep2() {
     consolePrint('     mezuniyet_yılı: 2024', '');
     consolePrint('     gpa: 3.5', '');
     await sleep(400);
-    
+
     consolePrint(`   İmza (İTÜ private key ile): ${demoState.vc.proof.signatureValue.substring(0, 30)}...`, 'warn');
     await sleep(500);
-    
+
     consolePrint('📱 VC, Ahmet\'in cüzdanına gönderiliyor...', 'highlight');
     await sleep(600);
-    
+
     // Update wallet
     const wallet = document.getElementById('wallet');
     const walletContent = document.getElementById('wallet-content');
     wallet.classList.add('has-vc');
     walletContent.classList.add('has-content');
     walletContent.innerHTML = '🎫 Diploma VC<br>İTÜ - Bilgisayar Müh.<br>Mezuniyet: 2024';
-    
+
     consolePrint('✅ VC başarıyla cüzdana kaydedildi!', 'success');
-    
+
     demoState.step = 2;
     updateStepIndicators(3);
     document.getElementById('btn-step-3').disabled = false;
@@ -301,22 +301,22 @@ async function demoStep2() {
 async function demoStep3() {
     const btn = document.getElementById('btn-step-3');
     btn.disabled = true;
-    
+
     consolePrint('');
     consolePrint('─── ADIM 3: VP Oluşturma & Sunma ───', 'info');
     await sleep(300);
-    
-    consolePrint('🏢 Garanti Bankası: "Üniversite diplomanızı gösterin"', 'warn');
+
+    consolePrint('🏢 Ziraat Bankası: "Üniversite diplomanızı gösterin"', 'warn');
     await sleep(600);
-    
+
     consolePrint('👤 Ahmet VP oluşturuyor (Selective Disclosure)...', 'highlight');
     await sleep(400);
-    
+
     consolePrint('   ⚠️ Ahmet sadece "bölüm" ve "mezuniyet_yılı" paylaşıyor', 'warn');
     consolePrint('   ❌ "ad" paylaşılMIYOR', 'error');
     consolePrint('   ❌ "gpa" paylaşılMIYOR', 'error');
     await sleep(500);
-    
+
     demoState.vp = {
         type: 'VerifiablePresentation',
         holder: demoState.holderDID,
@@ -333,22 +333,22 @@ async function demoStep3() {
             signatureValue: generateBase58(88)
         }
     };
-    
+
     consolePrint('   VP İçeriği:', 'info');
     consolePrint('     ✅ bölüm: "Bilgisayar Mühendisliği"', 'success');
     consolePrint('     ✅ mezuniyet_yılı: 2024', 'success');
     consolePrint('     🔒 ad: [GİZLİ]', 'error');
     consolePrint('     🔒 gpa: [GİZLİ]', 'error');
     await sleep(500);
-    
+
     consolePrint(`   VP İmzası (Ahmet private key): ${demoState.vp.proof.signatureValue.substring(0, 30)}...`, 'warn');
     await sleep(400);
-    
-    consolePrint('📨 VP Garanti Bankası\'na gönderiliyor...', 'highlight');
+
+    consolePrint('📨 VP Ziraat Bankası\'na gönderiliyor...', 'highlight');
     await sleep(600);
-    
+
     consolePrint('✅ VP başarıyla gönderildi!', 'success');
-    
+
     demoState.step = 3;
     updateStepIndicators(4);
     document.getElementById('btn-step-4').disabled = false;
@@ -358,45 +358,45 @@ async function demoStep3() {
 async function demoStep4() {
     const btn = document.getElementById('btn-step-4');
     btn.disabled = true;
-    
+
     consolePrint('');
     consolePrint('─── ADIM 4: Doğrulama ───', 'info');
     await sleep(300);
-    
-    consolePrint('🏢 Garanti Bankası VP\'yi doğruluyor...', 'highlight');
+
+    consolePrint('🏢 Ziraat Bankası VP\'yi doğruluyor...', 'highlight');
     await sleep(600);
-    
+
     consolePrint('   1️⃣ Blockchain\'den İTÜ\'nün DID\'ini çekiyor...', 'info');
     await sleep(400);
     consolePrint(`      DID: ${demoState.issuerDID}`, '');
     consolePrint(`      Public Key: ${demoState.issuerKeys.publicKey.substring(0, 30)}...`, 'success');
     await sleep(400);
-    
+
     consolePrint('   2️⃣ Schema kontrol ediliyor...', 'info');
     await sleep(400);
     consolePrint('      Schema: diploma v1.0 ✅', 'success');
     await sleep(300);
-    
+
     consolePrint('   3️⃣ Credential Definition kontrol ediliyor...', 'info');
     await sleep(400);
     consolePrint('      Cred Def: İTÜ → diploma ✅', 'success');
     await sleep(300);
-    
+
     consolePrint('   4️⃣ İTÜ\'nün imzası doğrulanıyor...', 'info');
     await sleep(600);
     consolePrint('      İmza geçerli! (Public key ile doğrulandı) ✅', 'success');
     await sleep(300);
-    
+
     consolePrint('   5️⃣ Ahmet\'in VP imzası doğrulanıyor...', 'info');
     await sleep(400);
     consolePrint('      VP imzası geçerli! ✅', 'success');
     await sleep(300);
-    
+
     consolePrint('   6️⃣ Revocation kontrol...', 'info');
     await sleep(400);
     consolePrint('      Credential iptal edilmemiş ✅', 'success');
     await sleep(500);
-    
+
     consolePrint('');
     consolePrint('═══════════════════════════════════════', 'success');
     consolePrint('   🎉 DOĞRULAMA BAŞARILI!', 'success');
@@ -405,10 +405,10 @@ async function demoStep4() {
     consolePrint('   Mezuniyet: 2024', 'success');
     consolePrint('   (Ad ve GPA paylaşılmadı — gizli kaldı)', 'warn');
     consolePrint('═══════════════════════════════════════', 'success');
-    
+
     demoState.step = 4;
     updateStepIndicators(5);
-    
+
     // Light up verifier
     document.getElementById('actor-verifier').style.borderColor = 'var(--accent-green)';
     document.getElementById('actor-verifier').style.boxShadow = '0 0 30px rgba(16, 185, 129, 0.3)';
@@ -425,16 +425,16 @@ function resetDemo() {
         vc: null,
         vp: null
     };
-    
+
     // Reset buttons
     document.getElementById('btn-step-1').disabled = false;
     document.getElementById('btn-step-2').disabled = true;
     document.getElementById('btn-step-3').disabled = true;
     document.getElementById('btn-step-4').disabled = true;
-    
+
     // Reset indicators
     updateStepIndicators(1);
-    
+
     // Reset actors
     document.querySelectorAll('.actor').forEach(a => {
         a.classList.remove('active');
@@ -447,18 +447,18 @@ function resetDemo() {
     document.getElementById('holder-did').classList.remove('has-did');
     document.getElementById('verifier-did').textContent = 'DID henüz yok';
     document.getElementById('verifier-did').classList.remove('has-did');
-    
+
     // Reset wallet
     const wallet = document.getElementById('wallet');
     const walletContent = document.getElementById('wallet-content');
     wallet.classList.remove('has-vc');
     walletContent.classList.remove('has-content');
     walletContent.textContent = 'Boş';
-    
+
     // Reset blockchain
     const blocks = document.getElementById('blockchain-blocks');
     blocks.innerHTML = '<div class="block genesis-block"><div class="block-label">Genesis</div></div>';
-    
+
     // Reset console
     const consoleBody = document.getElementById('console-body');
     consoleBody.innerHTML = '<div class="console-line"><span class="console-prompt">$</span><span class="console-text">Demo sıfırlandı. "Adım 1" butonuna bas.</span></div>';
@@ -541,10 +541,10 @@ function renderQuestion() {
     document.getElementById('quiz-question').textContent = q.q;
     document.getElementById('q-current').textContent = quizState.currentQuestion + 1;
     document.getElementById('quiz-progress-bar').style.width = ((quizState.currentQuestion / quizQuestions.length) * 100) + '%';
-    
+
     const optionsContainer = document.getElementById('quiz-options');
     optionsContainer.innerHTML = '';
-    
+
     q.options.forEach((opt, i) => {
         const btn = document.createElement('button');
         btn.className = 'quiz-option';
@@ -552,7 +552,7 @@ function renderQuestion() {
         btn.onclick = () => selectAnswer(i);
         optionsContainer.appendChild(btn);
     });
-    
+
     document.getElementById('quiz-feedback').className = 'quiz-feedback';
     document.getElementById('quiz-feedback').style.display = 'none';
     document.getElementById('quiz-next').style.display = 'none';
@@ -562,11 +562,11 @@ function renderQuestion() {
 function selectAnswer(index) {
     if (quizState.answered) return;
     quizState.answered = true;
-    
+
     const q = quizQuestions[quizState.currentQuestion];
     const options = document.querySelectorAll('.quiz-option');
     const feedback = document.getElementById('quiz-feedback');
-    
+
     options.forEach((opt, i) => {
         opt.classList.add('selected');
         if (i === q.correct) {
@@ -576,7 +576,7 @@ function selectAnswer(index) {
             opt.classList.add('wrong');
         }
     });
-    
+
     if (index === q.correct) {
         quizState.score++;
         feedback.className = 'quiz-feedback show correct';
@@ -586,7 +586,7 @@ function selectAnswer(index) {
         feedback.textContent = '❌ Yanlış! ' + q.explanation;
     }
     feedback.style.display = 'block';
-    
+
     if (quizState.currentQuestion < quizQuestions.length - 1) {
         document.getElementById('quiz-next').style.display = 'block';
         document.getElementById('quiz-next').textContent = 'Sonraki Soru →';
@@ -611,12 +611,12 @@ function showResults() {
     document.getElementById('quiz-feedback').style.display = 'none';
     document.getElementById('quiz-next').style.display = 'none';
     document.getElementById('quiz-progress-bar').style.width = '100%';
-    
+
     const result = document.getElementById('quiz-result');
     result.style.display = 'block';
-    
+
     const ratio = quizState.score / quizQuestions.length;
-    
+
     if (ratio >= 0.8) {
         document.getElementById('result-icon').textContent = '🏆';
         document.getElementById('result-title').textContent = 'Mükemmel!';
@@ -634,11 +634,11 @@ function showResults() {
 
 function restartQuiz() {
     quizState = { currentQuestion: 0, score: 0, answered: false };
-    
+
     document.getElementById('quiz-question').style.display = 'block';
     document.getElementById('quiz-options').style.display = 'flex';
     document.getElementById('quiz-result').style.display = 'none';
-    
+
     renderQuestion();
 }
 
@@ -661,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initNavbar();
     initFlowAnimations();
     renderQuestion();
-    
+
     // Intersection Observer for animations
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
@@ -671,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }, { threshold: 0.1 });
-    
+
     document.querySelectorAll('.concept-card, .flow-step, .blockchain-info').forEach(el => {
         el.style.opacity = '0';
         el.style.transform = 'translateY(20px)';

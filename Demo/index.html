@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SSI & Hyperledger Indy — İnteraktif Öğrenme Platformu</title>
-    <meta name="description" content="Self-Sovereign Identity ve Hyperledger Indy kavramlarını interaktif olarak öğrenin: DID, VC, VP, Public Key, Private Key ve daha fazlası.">
+    <meta name="description"
+        content="Self-Sovereign Identity ve Hyperledger Indy kavramlarını interaktif olarak öğrenin: DID, VC, VP, Public Key, Private Key ve daha fazlası.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <!-- Floating particles background -->
     <div class="particles" id="particles"></div>
@@ -81,10 +86,12 @@
                     <h3>DID</h3>
                     <span class="concept-badge">Decentralized Identifier</span>
                 </div>
-                <p class="concept-brief">Merkeziyetsiz Tanımlayıcı — Seni dijital dünyada temsil eden benzersiz adres</p>
+                <p class="concept-brief">Merkeziyetsiz Tanımlayıcı — Seni dijital dünyada temsil eden benzersiz adres
+                </p>
                 <div class="concept-detail" id="detail-did">
                     <div class="detail-analogy">
-                        <strong>🏠 Gerçek Hayat:</strong> TC Kimlik Numarası gibi, ama devlet değil <em>sen kendin</em> oluşturursun!
+                        <strong>🏠 Gerçek Hayat:</strong> TC Kimlik Numarası gibi, ama devlet değil <em>sen kendin</em>
+                        oluşturursun!
                     </div>
                     <div class="did-anatomy">
                         <code class="did-example">
@@ -154,7 +161,8 @@
                 <p class="concept-brief">Public Key'in Indy'deki özel adı — Doğrulama Anahtarı</p>
                 <div class="concept-detail" id="detail-verkey">
                     <div class="detail-analogy">
-                        <strong>💡 Basitçe:</strong> verkey = public key. Indy ekosisteminde "verification key" olarak adlandırılır.
+                        <strong>💡 Basitçe:</strong> verkey = public key. Indy ekosisteminde "verification key" olarak
+                        adlandırılır.
                     </div>
                     <div class="verkey-comparison">
                         <div class="comparison-item">
@@ -240,7 +248,8 @@
                 <p class="concept-brief">Sadece gerekli bilgiyi paylaşma — Zero-Knowledge Proof</p>
                 <div class="concept-detail" id="detail-vp">
                     <div class="detail-analogy">
-                        <strong>🎯 Örnek:</strong> Banka yaşını soruyor. Tüm kimliğini değil, sadece "18 yaşından büyüğüm: EVET" bilgisini paylaşırsın!
+                        <strong>🎯 Örnek:</strong> Banka yaşını soruyor. Tüm kimliğini değil, sadece "18 yaşından
+                        büyüğüm: EVET" bilgisini paylaşırsın!
                     </div>
                     <div class="vp-visual">
                         <div class="vp-full">
@@ -320,7 +329,7 @@
 
                     <div class="actor actor-verifier" id="actor-verifier">
                         <div class="actor-avatar">🏢</div>
-                        <h3>Garanti Bankası</h3>
+                        <h3>Ziraat Bankası</h3>
                         <p class="actor-role">Verifier (Doğrulayan)</p>
                         <div class="actor-did" id="verifier-did">DID henüz yok</div>
                     </div>
@@ -542,4 +551,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

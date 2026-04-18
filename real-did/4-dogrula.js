@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
    4-dogrula.js — VP Doğrulama (Verification)
    
-   Garanti Bankası (Verifier) Ahmet'in sunduğu VP'yi doğrular.
+   Ziraat Bankası (Verifier) Ahmet'in sunduğu VP'yi doğrular.
    İmzalar GERÇEK kriptografik olarak kontrol edilir!
    
    Ayrıca: Sahtecilik testi — veriler değiştirilirse ne olur?
@@ -30,7 +30,7 @@ if (!state.vp) {
 printHeader('ADIM 4: VP DOĞRULAMA (VERİFİCATİON)');
 
 console.log(colors.yellow + '\n  📖 Senaryo:' + colors.reset);
-console.log(colors.dim + '  Garanti Bankası, Ahmet\'in gönderdiği VP\'yi doğruluyor.' + colors.reset);
+console.log(colors.dim + '  Ziraat Bankası, Ahmet\'in gönderdiği VP\'yi doğruluyor.' + colors.reset);
 console.log(colors.dim + '  Tüm imzalar GERÇEK kriptografik olarak kontrol edilecek!' + colors.reset);
 
 const vp = state.vp;
@@ -150,7 +150,7 @@ if (vcValid && vpValid) {
      → Mezuniyet: ${vc.credentialSubject.mezuniyet_yili}
   🔒 Gizli kalan bilgiler: ad, soyad, gpa, ogrenci_no
   
-  Garanti Bankası, Ahmet'in başvurusunu onaylayabilir!
+  Ziraat Bankası, Ahmet'in başvurusunu onaylayabilir!
 ` + colors.reset);
 } else {
     console.log(colors.bgRed + colors.white + colors.bold + ' ═══════════════════════════════════════════ ' + colors.reset);

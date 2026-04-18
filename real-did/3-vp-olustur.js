@@ -28,7 +28,7 @@ if (!state.vc) {
 printHeader('ADIM 3: VERİFİABLE PRESENTATİON (VP) OLUŞTURMA');
 
 console.log(colors.yellow + '\n  📖 Senaryo:' + colors.reset);
-console.log(colors.dim + '  Ahmet, Garanti Bankası\'na iş başvurusu yapıyor.' + colors.reset);
+console.log(colors.dim + '  Ahmet, Ziraat Bankası\'na iş başvurusu yapıyor.' + colors.reset);
 console.log(colors.dim + '  Banka: "Üniversite diplomanızı gösterin"' + colors.reset);
 console.log(colors.dim + '  Ahmet: Tüm bilgilerini değil, SADECE gerekli olanları paylaşacak!' + colors.reset);
 

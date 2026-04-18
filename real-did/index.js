@@ -61,7 +61,7 @@ const verifierKeys = generateKeyPair();
 const verifierDID = createDIDKey(verifierKeys.publicKey);
 
 console.log();
-printSuccess('Garanti Bankası (Verifier) DID oluşturuldu');
+printSuccess('Ziraat Bankası (Verifier) DID oluşturuldu');
 printKey('  DID       ', verifierDID);
 
 console.log(colors.dim + '\n  → 3 gerçek Ed25519 anahtar çifti üretildi' + colors.reset);
@@ -171,7 +171,7 @@ console.log(colors.dim + '  → VP, bankaya-gonderilen-vp.json dosyasına kayded
 
 printHeader('ADIM 4/4: DOĞRULAMA');
 
-console.log(colors.bold + '\n  🏢 Garanti Bankası doğrulama yapıyor...\n' + colors.reset);
+console.log(colors.bold + '\n  🏢 Ziraat Bankası doğrulama yapıyor...\n' + colors.reset);
 
 // 4a. İTÜ'nün VC imzasını doğrula
 printInfo('1) İTÜ\'nün VC imzası kontrol ediliyor...');

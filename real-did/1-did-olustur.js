@@ -71,16 +71,16 @@ printInfo('Ahmet DID Document:');
 printJSON('', holderDIDDoc);
 
 // ═══════════════════════════════════════
-// 3. Garanti Bankası (Verifier) için DID oluştur
+// 3. Ziraat Bankası (Verifier) için DID oluştur
 // ═══════════════════════════════════════
-console.log(colors.bold + '\n\n  🏢 Garanti Bankası (Verifier) İçin Anahtar Üretimi' + colors.reset);
+console.log(colors.bold + '\n\n  🏢 Ziraat Bankası (Verifier) İçin Anahtar Üretimi' + colors.reset);
 console.log(colors.dim + '  ────────────────────────────────────────────────' + colors.reset);
 
 const verifierKeys = generateKeyPair();
 const verifierDID = createDIDKey(verifierKeys.publicKey);
 
 printKey('  Public Key (Base58)', toBase58(verifierKeys.publicKey));
-printSuccess('Garanti DID oluşturuldu:');
+printSuccess('Ziraat DID oluşturuldu:');
 printKey('  DID', verifierDID);
 
 // ═══════════════════════════════════════
@@ -102,7 +102,7 @@ const state = {
         didDocument: holderDIDDoc
     },
     verifier: {
-        name: 'Garanti Bankası',
+        name: 'Ziraat Bankası',
         did: verifierDID,
         publicKey: toBase58(verifierKeys.publicKey),
         privateKey: toBase58(verifierKeys.privateKey)
