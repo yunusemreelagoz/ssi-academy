@@ -23,7 +23,8 @@ def main():
     
     # "ENDORSER" rolü: Blockchain'e veri yazabilme yetkisine sahip kurum demek.
     # Nixar otomatik olarak cüzdanı kurup, public DID'sini blokzincirine yazar.
-    itu_ajani = create_nixar_agent_w_json_wallet("itu_uni", lambda: itu_sifre, "ENDORSER")
+    sabit_tohum = test_utils.encode_base64("0000000000000000SirketKurumsal01")
+    itu_ajani = create_nixar_agent_w_json_wallet("itu_uni", lambda: itu_sifre, "ENDORSER", base64_seed=sabit_tohum)
     
     logger.info(f"✅ İTÜ Ajanı Başarıyla Kuruldu!")
     

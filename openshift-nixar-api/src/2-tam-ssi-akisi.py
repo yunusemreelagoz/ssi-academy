@@ -28,9 +28,14 @@ def main():
     ahmet_sifre = test_utils.native_string("AhmetCuzdan123!")
     ziraat_sifre = test_utils.native_string("ZiraatBanka123!")
 
-    itu_ajani = create_nixar_agent_w_json_wallet("itu_uni_demo", lambda: itu_sifre, "ENDORSER")
-    ahmet_cuzdan = create_nixar_agent_w_json_wallet("ahmet_ogrenci", lambda: ahmet_sifre, None)
-    ziraat_bankasi = create_nixar_agent_w_json_wallet("ziraat_bank", lambda: ziraat_sifre, None)
+    # Ajanların DID'lerinin her zaman sabit kalması için belirlenen Tohumlar (Seed)
+    itu_seed = test_utils.encode_base64("0000000000000000SirketKurumsal01")
+    ahmet_seed = test_utils.encode_base64("000000000000000AhmetOgrenci01234")
+    ziraat_seed = test_utils.encode_base64("000000000000000ZiraatBanka012345")
+
+    itu_ajani = create_nixar_agent_w_json_wallet("itu_uni_demo", lambda: itu_sifre, "ENDORSER", base64_seed=itu_seed)
+    ahmet_cuzdan = create_nixar_agent_w_json_wallet("ahmet_ogrenci", lambda: ahmet_sifre, None, base64_seed=ahmet_seed)
+    ziraat_bankasi = create_nixar_agent_w_json_wallet("ziraat_bank", lambda: ziraat_sifre, None, base64_seed=ziraat_seed)
 
     # ---------------------------------------------------------
     # 2. ŞABLON (SCHEMA) BELİRLEME

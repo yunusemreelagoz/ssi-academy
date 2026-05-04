@@ -243,18 +243,18 @@ def get_timestamp_tag():
   return datetime.now().strftime("%Y%m%d%H%M")
 
 
-def create_nixar_agent_w_json_wallet(name, password_cb, role=None):
+def create_nixar_agent_w_json_wallet(name, password_cb, role=None, base64_seed=None):
   try:
-    return Nixar(name, password_cb, role)
+    return Nixar(name, password_cb, role, base64_seed)
   except NixarError as err:
     # Register the agent to the ledger. This operation must be done by different authority or process
     if "AgentNotRegistered" == err.code:
       logger.warning(err)
       registration_info = json.loads(err.message)
       registration_info["alias"] = name
-      registration_info["role"] = "ENDORSER"
+      registration_info["role"] = "ENDORSER" if role == "ENDORSER" else None
       _register_agent_to_ledger(registration_info)
-      return Nixar(name, password_cb, role)
+      return Nixar(name, password_cb, role, base64_seed)
     else:
       raise err
 
