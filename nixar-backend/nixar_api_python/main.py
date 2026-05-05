@@ -1,3 +1,14 @@
+import sys
+import ctypes
+import os
+
+if sys.platform == "darwin":
+    try:
+        ctypes.CDLL(os.path.abspath("libsodium.23.dylib"))
+        ctypes.CDLL(os.path.abspath("libzmq.5.dylib"))
+    except:
+        pass
+
 from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -24,6 +35,12 @@ class AgentInitReq(BaseModel):
     alias: str
     password: str
     role: Optional[str] = None
+    seed: Optional[str] = None
+
+class HolderInitReq(BaseModel):
+    alias: str
+    password: str
+    seed: Optional[str] = None
     seed: Optional[str] = None
 
 class SchemaCreateReq(BaseModel):
@@ -60,9 +77,19 @@ class VerifyPresentationReq(BaseModel):
 # 1. AJAN (CÜZDAN) YÖNETİMİ
 # ==============================================================================
 
-@app.post("/api/v1/agents/init", tags=["Ajan Yönetimi"])
+@app.post("/api/v1/agents/init", tags=["Kurumsal Cüzdan Yönetimi"])
 def init_agent(req: AgentInitReq):
-    """Belirtilen cüzdan verileri ile bir Nixar Ajanı oluşturur veya hafızaya yükler."""
+    """
+    Belirtilen cüzdan verileri ile bir Kurumsal Nixar Ajanı oluşturur veya hafızaya yükler.
+    
+    KİMLER KULLANMALI?
+    - Kimlik Vericiler (Issuer): Örn; Üniversite (Diploma verir), Nüfus Müd. (Kimlik verir)
+    - Doğrulayıcılar (Verifier): Örn; Banka (Kredi için kimlik/maaş sorar), Noter.
+    
+    NOT: Bu endpoint ile kurulan cüzdanlar zorunlu olarak Ledger'a (blokzinciri ağına) kaydedilir.
+    Vatandaş/Öğrenci (Holder) işlemleri için KESİNLİKLE KULLANILMAMALI! 
+    Vatandaşlar için /api/v1/holder/init uç noktası kullanılmalıdır.
+    """
     try:
         if req.alias in active_agents:
             return {"status": "success", "message": "Agent zaten aktif."}
@@ -75,12 +102,13 @@ def init_agent(req: AgentInitReq):
         agent = create_nixar_agent_w_json_wallet(req.alias, password_cb, req.role, base64_seed=encoded_seed)
         
         active_agents[req.alias] = agent
-        return {"status": "success", "message": "Ajan basariyla olusturuldu"}
-        
+        return {"status": "success", "message": "Ajan basariyla olusturuldu"} 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v1/agents/{alias}/did", tags=["Ajan Yönetimi"])
+@app.get("/api/v1/agents/{alias}/did", tags=["Kurumsal Cüzdan Yönetimi"])
 def get_agent_did(alias: str):
     if alias not in active_agents:
         raise HTTPException(status_code=404, detail="Agent bulunamadı (Önce Init yapın)")
@@ -90,8 +118,12 @@ def get_agent_did(alias: str):
 # 2. SCHEMA (ŞABLON) VE CRED-DEF YÖNETİMİ
 # ==============================================================================
 
-@app.post("/api/v1/schema/create", tags=["Şablon İşlemleri"])
+@app.post("/api/v1/schema/create", tags=["Verici / Üniversite (Issuer)"])
 def create_schema(req: SchemaCreateReq):
+    """
+    Yeni bir Veri Şablonu (Schema) oluşturur ve ağa (Ledger) yazar.
+    Örn: Üniversite'nin vereceği diploma için 'Öğrenci No', 'Bölüm', 'Not Ortalaması' gibi alanları tanımlar.
+    """
     if req.agent_alias not in active_agents:
         raise HTTPException(status_code=404, detail="Agent aktif değil")
     agent = active_agents[req.agent_alias]
@@ -101,14 +133,18 @@ def create_schema(req: SchemaCreateReq):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/credential-definition/create", tags=["Şablon İşlemleri"])
+@app.post("/api/v1/credential-definition/create", tags=["Verici / Üniversite (Issuer)"])
 def create_cred_def(req: CredDefCreateReq):
+    """
+    Oluşturulan Schema'yı baz alarak bir Kimlik Tanımı (Credential Definition) yaratır.
+    Kriptografik anahtarların oluştuğu evredir. Kurum bu adımı atmadan kimlik/evrak ihraç edemez.
+    """
     if req.agent_alias not in active_agents:
         raise HTTPException(status_code=404, detail="Agent aktif değil")
     agent = active_agents[req.agent_alias]
     try:
         tag = get_timestamp_tag()
-        cred_def_id = agent.issuer_create_credential_definition(req.schema_id, req.is_revokable, tag, 0, 1000)
+        cred_def_id = agent.issuer_create_credential_definition(req.schema_id, req.is_revokable, tag, "IssuanceByDefault", 1000)
         return {"status": "success", "cred_def_id": cred_def_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -117,8 +153,12 @@ def create_cred_def(req: CredDefCreateReq):
 # 3. İHRAÇ (ISSUANCE) AKIŞI
 # ==============================================================================
 
-@app.post("/api/v1/issuer/create-offer", tags=["Veri İhracı"])
+@app.post("/api/v1/issuer/create-offer", tags=["Verici / Üniversite (Issuer)"])
 def create_offer(req: CredentialOfferReq):
+    """
+    Verici Kurum (Issuer), öğrenciye/vatandaşa göndermek üzere bir 'Kimlik Verisi Teklifi' hazırlar.
+    Bu teklif, vatandaşın mobil uygulamasına gönderilir.
+    """
     agent = active_agents.get(req.agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
     
@@ -127,16 +167,24 @@ def create_offer(req: CredentialOfferReq):
     offer = agent.issuer_create_credential_offer(req.cred_def_id, nonce)
     return {"offer": offer, "issuer_nonce": nonce}
 
-@app.post("/api/v1/prover/create-request", tags=["Veri İhracı"])
+@app.post("/api/v1/holder/create-request", tags=["Vatandaş / Öğrenci (Holder)"])
 def create_request(agent_alias: str, offer: Dict[str, Any] = Body(...)):
+    """
+    Vatandaş kendisine gelen belge teklifini (offer) alır ve 
+    'Evet, bu belgeyi almaya hazırım ve kriptografik isteğim budur' (Credential Request) diyerek cevap üretir.
+    """
     agent = active_agents.get(agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
     
     cred_req = agent.prover_create_credential_request(offer)
     return {"credential_request": cred_req}
 
-@app.post("/api/v1/issuer/issue-credential", tags=["Veri İhracı"])
+@app.post("/api/v1/issuer/issue-credential", tags=["Verici / Üniversite (Issuer)"])
 def issue_credential(req: CredentialIssueReq):
+    """
+    Vatandaştan gelen isteği alan Kurum, içine gerçek verileri (Not: 3.5, İsim: Ahmet) 
+    doldurarak kriptografik olarak imzalar ve belgeyi (Credential) ihraç eder.
+    """
     agent = active_agents.get(req.agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
     
@@ -146,8 +194,12 @@ def issue_credential(req: CredentialIssueReq):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/prover/store-credential", tags=["Veri İhracı"])
+@app.post("/api/v1/holder/store-credential", tags=["Vatandaş / Öğrenci (Holder)"])
 def store_credential(agent_alias: str, credential: Dict[str, Any] = Body(...)):
+    """
+    Vatandaş, kurumun imzalayıp gönderdiği belgeyi (Credential) alır ve kendi lokal 
+    cüzdanına (Wallet) güvenli bir biçimde kaydeder.
+    """
     agent = active_agents.get(agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
     
@@ -158,8 +210,13 @@ def store_credential(agent_alias: str, credential: Dict[str, Any] = Body(...)):
 # 4. DOĞRULAMA (VERIFICATION) - SIFIR BİLGİ İSPATI (ZKP)
 # ==============================================================================
 
-@app.post("/api/v1/prover/create-presentation", tags=["ZKP Doğrulama"])
+@app.post("/api/v1/holder/create-presentation", tags=["Vatandaş / Öğrenci (Holder)"])
 def create_presentation(req: PresentationCreateReq):
+    """
+    Vatandaş, banka/noter gibi yerlerin istediği verilere göre (Presentation Request), 
+    cüzdanındaki orijinal belgeyi bozmadan bir Sıfır Bilgi İspatı (ZKP) Kanıtı (Presentation) hazırlar.
+    Örn: Doğum tarihini vermeden yaşı 18'den büyüktür kanıtı.
+    """
     agent = active_agents.get(req.agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
     
@@ -169,8 +226,12 @@ def create_presentation(req: PresentationCreateReq):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/verifier/verify-presentation", tags=["ZKP Doğrulama"])
+@app.post("/api/v1/verifier/verify-presentation", tags=["Doğrulayıcı / Banka (Verifier)"])
 def verify_presentation(req: VerifyPresentationReq):
+    """
+    Doğrulayıcı Kurum (Verifier), vatandaştan gelen kanıtı (Presentation) alır. 
+    İçindeki kriptografik imzaları Ledger üzerinden kontrol ederek verinin tahrif edilip edilmediğini doğrular.
+    """
     agent = active_agents.get(req.agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
     
@@ -186,3 +247,32 @@ def verify_presentation(req: VerifyPresentationReq):
         return {"is_valid": is_valid, "revealed_data": decoded_attrs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/holder/init", tags=["Vatandaş / Öğrenci (Holder)"])
+def init_holder(req: HolderInitReq):
+    """
+    Sıradan bir vatandaş (Holder) için ağa (ledger) yazılmayacak yerel bir DID/cüzdan oluşturur.
+    Mahremiyet (Privacy) felsefesine uygun olarak bu DID herkese açık olmaz.
+    """
+    if req.alias in active_agents:
+        return {"status": "ok", "message": "Holder Zaten aktif", "agent_alias": req.alias}
+    
+    try:
+        from test_utils import create_holder_agent_w_json_wallet, native_string, encode_base64
+        pw_cb = lambda: native_string(req.password)
+        b64_seed = encode_base64(req.seed) if req.seed else None
+
+        agent = create_holder_agent_w_json_wallet(req.alias, pw_cb, b64_seed)
+        active_agents[req.alias] = agent
+        
+        return {
+            "status": "ok",
+            "message": "Holder cüzdanı BAŞARIYLA oluşturuldu (Ledger kaydı YAZILMADI).",
+            "agent_alias": req.alias
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Holder oluşturulamadı: {str(e)}")
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=8000)

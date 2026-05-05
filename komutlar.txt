@@ -1,0 +1,9 @@
+# Projemizin klasörüne gir
+cd ~/source/ssi/nixar-backend/nixar_api_python
+
+# Python Sanal Ortamını (Kütüphaneleri) aktif et
+source ../venv/bin/activate
+
+# Mac Kütüphaneleri için sistem değişkenini ayarla ve kodumuzu (Uvicorn Motorunda) başlat!
+export DYLD_LIBRARY_PATH=$(pwd)
+python main.py

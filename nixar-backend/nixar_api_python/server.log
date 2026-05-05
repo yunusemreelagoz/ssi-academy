@@ -1,0 +1,54 @@
+2026-05-06 00:02:10,138 - INFO - Platform Darwin
+2026-05-06 00:02:10,138 - INFO - libnixar_core.dylib
+2026-05-06 00:02:10,140 - INFO - libnixar_core was loaded
+nixar-core init logging
+Set logging level ERROR
+2026-05-06 00:02:10,142 - DEBUG - libnixar-core Initialize logging to ERROR
+2026-05-06 00:02:10,142 - INFO - Agent will be created with {"alias": "trustee", "base64Seed": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwVHJ1c3RlZTE=", "role": "TRUSTEE", "genesisPath": "/Users/personaone/source/ssi/nixar-backend/nixar_api_python/genesis.txn", "walletInitParams": {"jsonWalletInitParams": {"walletName": "trustee"}}}
+2026-05-06 00:02:11,225 - DEBUG - Using selector: KqueueSelector
+INFO:     Started server process [37681]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-05-06 00:02:12,158 - INFO - Platform Darwin
+2026-05-06 00:02:12,158 - INFO - libnixar_core.dylib
+2026-05-06 00:02:12,158 - INFO - libnixar_core was loaded
+nixar-core init logging
+Set logging level ERROR
+2026-05-06 00:02:12,159 - DEBUG - libnixar-core Initialize logging to ERROR
+Cannot configure logger Error: (InvalidState)
+  Caused by: attempted to set a logger after the logging system was already initialized
+
+2026-05-06 00:02:12,159 - INFO - Agent will be created with {"alias": "ITU", "base64Seed": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBJVFU=", "role": "ENDORSER", "genesisPath": "/Users/personaone/source/ssi/nixar-backend/nixar_api_python/genesis.txn", "walletInitParams": {"jsonWalletInitParams": {"walletName": "ITU"}}}
+INFO:     127.0.0.1:53577 - "POST /api/v1/agents/init HTTP/1.1" 200 OK
+2026-05-06 00:02:13,207 - INFO - Platform Darwin
+2026-05-06 00:02:13,207 - INFO - libnixar_core.dylib
+2026-05-06 00:02:13,207 - INFO - libnixar_core was loaded
+nixar-core init logging
+Set logging level ERROR
+2026-05-06 00:02:13,208 - DEBUG - libnixar-core Initialize logging to ERROR
+Cannot configure logger Error: (InvalidState)
+  Caused by: attempted to set a logger after the logging system was already initialized
+
+2026-05-06 00:02:13,208 - INFO - Agent will be created with {"alias": "Ziraat", "base64Seed": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBaaXJhYXQ=", "role": "ENDORSER", "genesisPath": "/Users/personaone/source/ssi/nixar-backend/nixar_api_python/genesis.txn", "walletInitParams": {"jsonWalletInitParams": {"walletName": "Ziraat"}}}
+INFO:     127.0.0.1:53582 - "POST /api/v1/agents/init HTTP/1.1" 200 OK
+2026-05-06 00:02:14,193 - INFO - Platform Darwin
+2026-05-06 00:02:14,193 - INFO - libnixar_core.dylib
+2026-05-06 00:02:14,193 - INFO - libnixar_core was loaded
+nixar-core init logging
+Set logging level ERROR
+2026-05-06 00:02:14,194 - DEBUG - libnixar-core Initialize logging to ERROR
+Cannot configure logger Error: (InvalidState)
+  Caused by: attempted to set a logger after the logging system was already initialized
+
+2026-05-06 00:02:14,195 - INFO - Agent will be created with {"alias": "Ahmet", "base64Seed": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwQWhtZXQ=", "role": null, "genesisPath": "/Users/personaone/source/ssi/nixar-backend/nixar_api_python/genesis.txn", "walletInitParams": {"jsonWalletInitParams": {"walletName": "Ahmet"}}}
+INFO:     127.0.0.1:53587 - "POST /api/v1/holder/init HTTP/1.1" 200 OK
+Result "REPLY"
+INFO:     127.0.0.1:53592 - "POST /api/v1/schema/create HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53594 - "POST /api/v1/credential-definition/create HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:53737 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53737 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53775 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53775 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53808 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53808 - "GET /openapi.json HTTP/1.1" 200 OK
