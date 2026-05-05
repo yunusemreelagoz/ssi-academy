@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import json
 
-from nixar.nixar_api import Nixar
+from nixar.nixar_api import Nixar, CredDefIssuanceType
 import test_utils
 from test_utils import create_nixar_agent_w_json_wallet, get_timestamp_tag
 
@@ -144,7 +144,7 @@ def create_cred_def(req: CredDefCreateReq):
     agent = active_agents[req.agent_alias]
     try:
         tag = get_timestamp_tag()
-        cred_def_id = agent.issuer_create_credential_definition(req.schema_id, req.is_revokable, tag, "IssuanceByDefault", 1000)
+        cred_def_id = agent.issuer_create_credential_definition(req.schema_id, req.is_revokable, tag, CredDefIssuanceType.ISSUANCE_BY_DEFAULT, 1000)
         return {"status": "success", "cred_def_id": cred_def_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
