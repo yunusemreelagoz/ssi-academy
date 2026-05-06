@@ -2,6 +2,7 @@ import sys
 import ctypes
 import os
 import json
+import hashlib
 
 if sys.platform == "darwin":
     try:
@@ -29,27 +30,31 @@ active_agents: Dict[str, Nixar] = {}
 
 # ==============================================================================
 # KALICI DID KAYIT DEFTERİ (Agent Registry)
-# Best Practice: Her ajanın canonical DID'i ilk init sırasında belirlenir ve
-# diske yazılır. Sonraki init'lerde seed ne olursa olsun bu DID kullanılır.
+# Her kayıt: { "did": "...", "seed_hash": "sha256(seed)" }
+# Best Practice:
+#   - İlk init'te canonical DID ve seed hash'i birlikte diske yazılır.
+#   - Sonraki init'lerde seed hash karşılaştırılır; farklıysa 403 döner.
+#   - Seed plaintext saklanmaz — sadece SHA-256 hash'i tutulur.
 # ==============================================================================
 
 _REGISTRY_PATH = os.path.join(os.path.dirname(__file__), ".tmp", "agent_registry.json")
 
-def _load_registry() -> Dict[str, str]:
-    """Disk'ten ajan DID kayıt defterini yükle."""
+def _hash_seed(seed: str) -> str:
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()
+
+def _load_registry() -> Dict[str, Dict]:
     if os.path.exists(_REGISTRY_PATH):
         with open(_REGISTRY_PATH, "r") as f:
             return json.load(f)
     return {}
 
-def _save_registry(registry: Dict[str, str]):
-    """Ajan DID kayıt defterini diske yaz."""
+def _save_registry(registry: Dict[str, Dict]):
     os.makedirs(os.path.dirname(_REGISTRY_PATH), exist_ok=True)
     with open(_REGISTRY_PATH, "w") as f:
         json.dump(registry, f, indent=2)
 
 # Uygulama başlarken mevcut kayıtları yükle
-_agent_registry: Dict[str, str] = _load_registry()
+_agent_registry: Dict[str, Dict] = _load_registry()
 
 # ==============================================================================
 # PYDANTIC MODELLERİ (VERİ TRANSFER OBJELERİ - DTO)
@@ -115,9 +120,25 @@ def init_agent(req: AgentInitReq):
     Vatandaşlar için /api/v1/holder/init uç noktası kullanılmalıdır.
     """
     try:
-        # Hafıza kontrolü
+        # ── SEED DOĞRULAMASI ─────────────────────────────────────────────────
+        # Ajan daha önce kaydedildiyse, verilen seed kayıttaki ile eşleşmeli.
+        if req.alias in _agent_registry:
+            record = _agent_registry[req.alias]
+            stored_hash = record.get("seed_hash")
+            incoming_hash = _hash_seed(req.seed) if req.seed else None
+            if stored_hash and incoming_hash != stored_hash:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"'{req.alias}' ajanı daha önce farklı bir seed ile kaydedildi. "
+                        "Canonical DID'i korumak için orijinal seed kullanılmalıdır."
+                    )
+                )
+
+        # Hafıza kontrolü (seed doğru, ajan zaten aktif)
         if req.alias in active_agents:
-            return {"status": "success", "message": "Agent zaten aktif.", "did": _agent_registry.get(req.alias)}
+            record = _agent_registry.get(req.alias, {})
+            return {"status": "success", "message": "Agent zaten aktif.", "did": record.get("did")}
 
         # Tohumu Base64'e çevir (Eğer verilmişse)
         encoded_seed = test_utils.encode_base64(req.seed) if req.seed else None
@@ -127,26 +148,23 @@ def init_agent(req: AgentInitReq):
         agent = create_nixar_agent_w_json_wallet(req.alias, password_cb, req.role, base64_seed=encoded_seed)
         active_agents[req.alias] = agent
 
-        # ── BEST PRACTICE: "First Wins" Kuralı ──────────────────────────────
-        # Eğer bu ajanın DID'i daha önce kaydedilmişse (önceki API başlatmalarından),
-        # create_local_did ASLA çağrılmaz → cüzdana yeni DID eklenmez.
-        # Sadece ilk kez init edildiğinde DID üretilir ve kalıcı olarak saklanır.
-        # ─────────────────────────────────────────────────────────────────────
+        # ── İLK KAYIT: DID + seed hash birlikte saklanır ──────────────────────
         if req.alias not in _agent_registry:
             if encoded_seed:
                 try:
                     did_info = agent.create_local_did(encoded_seed)
-                    canonical_did = did_info.get("id")
-                    _agent_registry[req.alias] = canonical_did
+                    _agent_registry[req.alias] = {
+                        "did": did_info.get("id"),
+                        "seed_hash": _hash_seed(req.seed)
+                    }
                     _save_registry(_agent_registry)
                 except Exception:
-                    pass  # İlk init değil, DID zaten oluşmuş olabilir
-        else:
-            # Kayıt defterinde var → seed farklı olsa bile canonical DID sabit kalır
-            if req.alias in _agent_registry:
-                pass  # Hiçbir şey yapma, eski DID korunur
+                    pass
 
-        return {"status": "success", "message": "Ajan basariyla olusturuldu", "did": _agent_registry.get(req.alias)}
+        record = _agent_registry.get(req.alias, {})
+        return {"status": "success", "message": "Ajan basariyla olusturuldu", "did": record.get("did")}
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -156,7 +174,8 @@ def init_agent(req: AgentInitReq):
 def get_agent_did(alias: str):
     if alias not in active_agents:
         raise HTTPException(status_code=404, detail="Agent bulunamadı (Önce Init yapın)")
-    did = _agent_registry.get(alias)
+    record = _agent_registry.get(alias, {})
+    did = record.get("did") if isinstance(record, dict) else record
     if not did:
         raise HTTPException(status_code=404, detail="DID bulunamadı. Ajanı seed ile init edin.")
     return {"alias": alias, "did": did}
