@@ -26,6 +26,8 @@ app = FastAPI(
 
 # Hafızada tutulan ajanlar (Performans için her istekte cüzdan aç-kapa yapmamak adına)
 active_agents: Dict[str, Nixar] = {}
+# Ajanların Public DID'leri (alias -> did)
+agent_dids: Dict[str, str] = {}
 
 # ==============================================================================
 # PYDANTIC MODELLERİ (VERİ TRANSFER OBJELERİ - DTO)
@@ -92,7 +94,7 @@ def init_agent(req: AgentInitReq):
     """
     try:
         if req.alias in active_agents:
-            return {"status": "success", "message": "Agent zaten aktif."}
+            return {"status": "success", "message": "Agent zaten aktif.", "did": agent_dids.get(req.alias)}
         
         # Tohumu Base64'e çevir (Eğer verilmişse)
         encoded_seed = test_utils.encode_base64(req.seed) if req.seed else None
@@ -102,7 +104,16 @@ def init_agent(req: AgentInitReq):
         agent = create_nixar_agent_w_json_wallet(req.alias, password_cb, req.role, base64_seed=encoded_seed)
         
         active_agents[req.alias] = agent
-        return {"status": "success", "message": "Ajan basariyla olusturuldu"} 
+
+        # Ajanın DID'ini sakla: create_local_did aynı seed ile deterministik olarak aynı DID'i döndürür
+        try:
+            did_info = agent.create_local_did(encoded_seed) if encoded_seed else None
+            if did_info:
+                agent_dids[req.alias] = did_info.get("id")
+        except Exception:
+            pass  # DID zaten cüzdanda varsa hata verebilir, önemli değil
+
+        return {"status": "success", "message": "Ajan basariyla olusturuldu", "did": agent_dids.get(req.alias)}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -112,7 +123,10 @@ def init_agent(req: AgentInitReq):
 def get_agent_did(alias: str):
     if alias not in active_agents:
         raise HTTPException(status_code=404, detail="Agent bulunamadı (Önce Init yapın)")
-    return {"message": "FFI kütüphanesinde Public DID çekme metodu sarmalanmadığı için geçici olarak devre dışı."}
+    did = agent_dids.get(alias)
+    if not did:
+        raise HTTPException(status_code=404, detail="DID bulunamadı. Ajanı seed ile init edin.")
+    return {"alias": alias, "did": did}
 
 # ==============================================================================
 # 2. SCHEMA (ŞABLON) VE CRED-DEF YÖNETİMİ
