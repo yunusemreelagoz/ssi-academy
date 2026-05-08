@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import json
 
-from nixar.nixar_api import Nixar
+from nixar.nixar_api import Nixar, NixarMessageType
 import test_utils
 from test_utils import create_nixar_agent_w_json_wallet, get_timestamp_tag
 
@@ -55,6 +55,30 @@ class VerifyPresentationReq(BaseModel):
     agent_alias: str
     presentation_request: Dict[str, Any]
     presentation: Dict[str, Any]
+
+# ==============================================================================
+# DIDCOMM / BAĞLANTI (CONNECTION) MODELLERİ
+# ==============================================================================
+
+class InvitationCreateReq(BaseModel):
+    agent_alias: str
+    label: str
+    endpoint_url: str
+    seed: Optional[str] = None
+
+class ConnectionAcceptReq(BaseModel):
+    agent_alias: str
+    connection_request: Dict[str, Any]
+
+class EncryptMessageReq(BaseModel):
+    agent_alias: str
+    from_did: str
+    their_did: str
+    message: Any
+
+class DecryptMessageReq(BaseModel):
+    agent_alias: str
+    encrypted_message: Dict[str, Any]
 
 # ==============================================================================
 # 1. AJAN (CÜZDAN) YÖNETİMİ
@@ -184,5 +208,74 @@ def verify_presentation(req: VerifyPresentationReq):
                 decoded_attrs[key] = val.get("raw")
 
         return {"is_valid": is_valid, "revealed_data": decoded_attrs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==============================================================================
+# 5. DIDCOMM BAĞLANTILARI (P2P COMMUNICATIONS)
+# ==============================================================================
+
+@app.post("/api/v1/connections/create-invitation", tags=["Cihaz Bağlantıları"])
+def create_connection_invitation(req: InvitationCreateReq):
+    """Telefona gösterilecek (QR Kod olacak) davet objesini (Invitation) oluşturur."""
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        encoded_seed = test_utils.encode_base64(req.seed) if req.seed else None
+        conn_inv = agent.connection_create_local_invitation(req.label, req.endpoint_url, encoded_seed)
+        return {"invitation": conn_inv}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/connections/accept-request", tags=["Cihaz Bağlantıları"])
+def accept_connection_request(req: ConnectionAcceptReq):
+    """Mobil telefondan (Lissi/Trinsic vs.) okunan QR sonrası gelen Connection Request'i kabul eder."""
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        # Mobil uygulamadan gelen connection_request kabul edilir ve response üretilir.
+        conn_res = agent.connection_accept_request(req.connection_request, None)
+        return {"status": "success", "connection_response": conn_res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/connections/list", tags=["Cihaz Bağlantıları"])
+def get_connections(agent_alias: str):
+    """Aktif ajan üzerindeki tüm onaylı DID connections listesini getirir."""
+    agent = active_agents.get(agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        conns = agent.connection_get_connections()
+        return {"connections": conns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/messages/encrypt", tags=["Cihaz Bağlantıları"])
+def encrypt_message_for_connection(req: EncryptMessageReq):
+    """Hedef cihazla kurulan DIDConn kanalı üzerinden gönderilecek mesajı (JWE) şifreler."""
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        # Message type şimdilik SIMPLE olarak bırakılıyor. Credential/Presentation için ilgili tipler kullanılabilir
+        encrypted_message = agent.connection_encrypt(
+            req.from_did, req.their_did, NixarMessageType.MESSAGE_TYPE_SIMPLE, req.message
+        )
+        return {"encrypted_message": encrypted_message}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/messages/decrypt", tags=["Cihaz Bağlantıları"])
+def decrypt_message_from_connection(req: DecryptMessageReq):
+    """Dışarıdan bir cihazdan kapalı, şifreli (JWE) olarak gelen mesajın şifresini çözer."""
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        decrypted_message = agent.connection_decrypt(req.encrypted_message)
+        return {"decrypted_message": decrypted_message}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,9 +1,46 @@
-# Projemizin klasörüne gir
+# ──────────────────────────────────────────────
+# API'Yİ BAŞLATMA
+# ──────────────────────────────────────────────
+
+# 1) Proje klasörüne gir
 cd ~/source/ssi/nixar-backend/nixar_api_python
 
-# Python Sanal Ortamını (Kütüphaneleri) aktif et
+# 2) Python sanal ortamını aktif et
 source ../venv/bin/activate
 
-# Mac Kütüphaneleri için sistem değişkenini ayarla ve kodumuzu (Uvicorn Motorunda) başlat!
-export DYLD_LIBRARY_PATH=$(pwd)
-python main.py
+# 3) API'yi başlat (terminali meşgul eder, log görürsün)
+python3 main.py
+
+# Arka planda başlatmak istersen (terminal serbest kalır):
+nohup python3 main.py > server.log 2>&1 &
+echo "API PID: $!"   # Bu PID'i not al, durdurmak için lazım
+
+
+# ──────────────────────────────────────────────
+# API'Yİ DURDURMA
+# ──────────────────────────────────────────────
+
+# Terminalde çalışıyorsa: Ctrl+C
+
+# Arka planda çalışıyorsa — port 8000'deki process'i öldür:
+kill $(lsof -ti:8000)
+
+# Ya da başlatırken not ettiğin PID ile:
+kill <PID>
+
+
+# ──────────────────────────────────────────────
+# KONTROL & FAYDALIK
+# ──────────────────────────────────────────────
+
+# API çalışıyor mu?
+lsof -i:8000
+
+# Arka plan loglarını takip et:
+tail -f ~/source/ssi/nixar-backend/nixar_api_python/server.log
+
+# Swagger arayüzü (tarayıcıda aç):
+# http://localhost:8000/docs
+
+# Full flow testini çalıştır:
+python3 test_full_flow.py
