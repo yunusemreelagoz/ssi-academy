@@ -138,3 +138,9 @@ Cannot configure logger Error: (InvalidState)
 INFO:     127.0.0.1:49165 - "POST /api/v1/agents/init HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56325 - "GET /docs HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56325 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59345 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59345 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [64049]

@@ -1,3 +1,4 @@
+from nixar.nixar_api import NixarMessageType
 import sys
 import ctypes
 import os
@@ -69,7 +70,6 @@ class AgentInitReq(BaseModel):
 class HolderInitReq(BaseModel):
     alias: str
     password: str
-    seed: Optional[str] = None
     seed: Optional[str] = None
 
 class SchemaCreateReq(BaseModel):
@@ -606,6 +606,422 @@ def init_holder(req: HolderInitReq):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Holder oluşturulamadı: {str(e)}")
 
-if __name__ == '__main__':
+# ==============================================================================
+# DIDCOMM / BAĞLANTI (CONNECTION) MODELLERİ
+# ==============================================================================
+
+class InvitationCreateReq(BaseModel):
+    agent_alias: str
+    label: str
+    endpoint_url: str
+    seed: Optional[str] = None
+
+class ConnectionAcceptReq(BaseModel):
+    agent_alias: str
+    connection_request: Dict[str, Any]
+
+class EncryptMessageReq(BaseModel):
+    agent_alias: str
+    from_did: str
+    their_did: str
+    message: Any
+
+class DecryptMessageReq(BaseModel):
+    agent_alias: str
+    encrypted_message: Dict[str, Any]
+
+class SendProofRequestReq(BaseModel):
+    agent_alias: str
+    connection_id_or_did: str
+    presentation_request: Dict[str, Any]
+
+# ==============================================================================
+# DIDCOMM BAĞLANTILARI VE ÇİFT YÖNLÜ (P2P) İSTEKLER
+# ==============================================================================
+
+@app.post("/api/v1/connections/send-proof-request", tags=["Cihaz Bağlantıları"])
+def send_proof_request_to_connection(req: SendProofRequestReq):
+    """
+    Bağlantı kurulmuş bir Holder'a (öğrenci/vatandaş) şifreli kanıt talebi (Proof Request) gönderir.
+
+    **Ne işe yarar?**
+    Verifier (örn: banka), daha önce DIDComm bağlantısı kurduğu bir Holder'dan
+    belirli alanları kanıtlamasını talep eder. Talep uçtan uca şifrelenerek
+    (DIDComm Envelope) hazırlanır — sadece hedef kişi açabilir.
+
+    **Akıştaki yeri:** Bağlantı kurulduktan sonra, Verifier bu endpoint ile
+    kanıt talebini şifreler, ardından Holder'ın webhook adresine POST eder.
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "Ziraat",
+      "connection_id_or_did": "FjRfZ...Holder_DID",
+      "presentation_request": {
+        "name": "Banka Kimlik Dogrulama",
+        "version": "1.0",
+        "nonce": "123456",
+        "requestedAttributes": {
+          "attr1": { "name": "name", "restrictions": [{ "cred_def_id": "..." }] }
+        },
+        "requestedPredicates": {}
+      }
+    }
+    ```
+    - `agent_alias`: Kanıt talebi gönderen Verifier ajanının adı
+    - `connection_id_or_did`: Karşı tarafın (Holder) DID'i — bağlantı listesinden alınır
+    - `presentation_request`: Hangi alanların kanıtlanmasını istediğiniz (verify akışıyla aynı format)
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "status": "success",
+      "message": "Zarf hazırlandı, karşı tarafa iletebilirsiniz.",
+      "encrypted_proof_request": { ... }
+    }
+    ```
+    **⚠️ Not:** Dönen `encrypted_proof_request` zarfını Holder'ın webhook URL'ine POST etmeniz gerekir.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        conns = agent.connection_get_connections()
+        from_did = ""
+        for c in conns:
+            if c.get("their_did") == req.connection_id_or_did:
+                from_did = c.get("my_did")
+                break
+                
+        if not from_did:
+            raise HTTPException(status_code=400, detail="Bu their_did ile aktif bir bağlantı bulunamadı.")
+
+        encrypted_req = agent.connection_encrypt(
+            from_did=from_did,
+            their_did=req.connection_id_or_did, 
+            message_type=NixarMessageType.MESSAGE_TYPE_PRESENTATION_REQUEST, 
+            content=req.presentation_request
+        )
+        return {"status": "success", "message": "Zarf hazırlandı, karşı tarafa iletebilirsiniz.", "encrypted_proof_request": encrypted_req}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/connections/create-invitation", tags=["Cihaz Bağlantıları"])
+def create_connection_invitation(req: InvitationCreateReq):
+    """
+    Başka bir ajanla (telefon, başka kurum vb.) güvenli DIDComm bağlantısı başlatmak için davetiye oluşturur.
+
+    **Ne işe yarar?**
+    İki tarafın (örn: üniversite ↔ öğrenci) uçtan uca şifreli iletişim kurması için
+    ilk adım budur. Davetiyeyi oluşturan taraf bir DID ve endpoint bilgisi üretir;
+    karşı taraf bu daveti tarayarak (QR kod vb.) bağlantı isteği gönderir.
+
+    **Gerçek hayat senaryosu:** Üniversite bir QR kod oluşturur, öğrenci telefonuyla
+    tarar ve otomatik olarak bağlantı isteği gider.
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "ITU",
+      "label": "ITU Ogrenci Isleri",
+      "endpoint_url": "https://itu.example.com/didcomm/ITU",
+      "seed": "00000000000000000000000000ConnIT"
+    }
+    ```
+    - `agent_alias`: Daveti oluşturan ajanın adı
+    - `label`: Davetiyede görünecek etiket (karşı tarafa gösterilir)
+    - `endpoint_url`: Karşı tarafın bağlantı isteğini POST edeceği webhook URL'i
+    - `seed`: (Opsiyonel) Bağlantı için kullanılacak DID'in seed'i, 32 karakter
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "invitation": {
+        "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/connections/1.0/invitation",
+        "label": "ITU Ogrenci Isleri",
+        "recipientKeys": ["..."],
+        "serviceEndpoint": "https://itu.example.com/didcomm/ITU"
+      }
+    }
+    ```
+    **⚠️ Not:** Dönen `invitation` objesini karşı tarafa QR kod, link veya doğrudan JSON olarak iletin.
+    Karşı taraf bu daveti `connections/accept-request` ile kabul eder.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        encoded_seed = test_utils.encode_base64(req.seed) if req.seed else None
+        conn_inv = agent.connection_create_local_invitation(req.label, req.endpoint_url, encoded_seed)
+        return {"invitation": conn_inv}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/connections/accept-request", tags=["Cihaz Bağlantıları"])
+def accept_connection_request(req: ConnectionAcceptReq):
+    """
+    Karşı taraftan gelen bağlantı isteğini (Connection Request) kabul eder ve güvenli kanal kurar.
+
+    **Ne işe yarar?**
+    Davetiyeyi alan taraf bir bağlantı isteği gönderdiğinde, daveti oluşturan taraf
+    bu endpoint ile isteği kabul eder. Kabul sonrası her iki taraf da birbirinin
+    DID'ini tanır ve uçtan uca şifreli mesajlaşmaya başlayabilir.
+
+    **Akıştaki yeri:** create-invitation → karşı taraf Connection Request gönderir →
+    bu endpoint ile kabul edilir → bağlantı aktif olur.
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "ITU",
+      "connection_request": {
+        "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/connections/1.0/request",
+        "label": "Ahmet Telefonu",
+        "connection": {
+          "DID": "...",
+          "DIDDoc": { ... }
+        }
+      }
+    }
+    ```
+    - `agent_alias`: Daveti oluşturmuş olan ajanın adı
+    - `connection_request`: Karşı taraftan gelen ham bağlantı isteği JSON'u
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "status": "success",
+      "connection_response": {
+        "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/connections/1.0/response",
+        "connection": { "DID": "...", "DIDDoc": { ... } }
+      }
+    }
+    ```
+    **⚠️ Not:** Webhook aktifse bu adım otomatik gerçekleşir — gelen istekler `/didcomm/{alias}` üzerinden otomatik kabul edilir.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        conn_res = agent.connection_accept_request(req.connection_request, None)
+        return {"status": "success", "connection_response": conn_res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/connections/list", tags=["Cihaz Bağlantıları"])
+def get_connections(agent_alias: str):
+    """
+    Bir ajanın mevcut tüm DIDComm bağlantılarını listeler.
+
+    **Ne işe yarar?**
+    Ajanın hangi cihaz/kurum/kişi ile bağlantı kurduğunu gösterir.
+    Her bağlantıda kendi DID'iniz (`my_did`) ve karşı tarafın DID'i (`their_did`) yer alır.
+    Mesaj şifrelemek veya kanıt talebi göndermek için `their_did` değerine ihtiyaç duyarsınız.
+
+    **Örnek İstek:**
+    ```
+    GET /api/v1/connections/list?agent_alias=ITU
+    ```
+    - `agent_alias`: Bağlantılarını listelemek istediğiniz ajanın adı (query parametresi)
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "connections": [
+        {
+          "my_did": "V4SG...abc",
+          "their_did": "FjRf...xyz",
+          "label": "Ahmet Telefonu"
+        }
+      ]
+    }
+    ```
+    **⚠️ Not:** Bağlantı yoksa boş liste döner. Önce `create-invitation` ve `accept-request` ile bağlantı kurun.
+    """
+    agent = active_agents.get(agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        conns = agent.connection_get_connections()
+        return {"connections": conns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/messages/encrypt", tags=["Cihaz Bağlantıları"])
+def encrypt_message_for_connection(req: EncryptMessageReq):
+    """
+    Bağlantı kurulmuş bir tarafa uçtan uca şifreli mesaj (DIDComm Envelope) oluşturur.
+
+    **Ne işe yarar?**
+    İki taraf arasında kurulan DIDComm bağlantısı üzerinden gönderilecek mesajı
+    kriptografik olarak şifreler. Sadece hedef DID'in sahibi bu mesajı çözebilir.
+    Mesaj bir "zarf" (envelope) içine konur — transit sırasında kimse içeriğini okuyamaz.
+
+    **Kullanım senaryoları:**
+    - Kurum → Holder'a özel bildirim göndermek
+    - Holder → Verifier'a kanıt belgesi göndermek
+    - İki kurum arasında gizli veri paylaşımı
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "ITU",
+      "from_did": "V4SG...abc",
+      "their_did": "FjRf...xyz",
+      "message": { "text": "Diplomanız hazır" }
+    }
+    ```
+    - `agent_alias`: Mesajı gönderen ajanın adı
+    - `from_did`: Gönderenin kendi DID'i (`connections/list`'ten `my_did` alanı)
+    - `their_did`: Alıcının DID'i (`connections/list`'ten `their_did` alanı)
+    - `message`: Şifrelenecek mesaj içeriği (herhangi bir JSON objesi olabilir)
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "encrypted_message": {
+        "protected": "...",
+        "iv": "...",
+        "ciphertext": "...",
+        "tag": "..."
+      }
+    }
+    ```
+    **⚠️ Not:** Dönen `encrypted_message` zarfını karşı tarafın webhook URL'ine POST edin.
+    Karşı taraf `messages/decrypt` ile açabilir.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    try:
+        encrypted_message = agent.connection_encrypt(
+            req.from_did, req.their_did, NixarMessageType.MESSAGE_TYPE_SIMPLE, req.message
+        )
+        return {"encrypted_message": encrypted_message}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/messages/decrypt", tags=["Cihaz Bağlantıları"])
+def decrypt_message_from_connection(req: DecryptMessageReq):
+    """
+    Şifreli bir DIDComm zarfını (envelope) açarak içindeki orijinal mesajı çıkarır.
+
+    **Ne işe yarar?**
+    Karşı tarafın `messages/encrypt` ile oluşturduğu veya webhook üzerinden gelen
+    şifreli mesajı kendi özel anahtarınızla çözer. Sadece mesajın hedef DID'ine
+    sahip olan ajan bu zarfı açabilir.
+
+    **Kullanım senaryosu:** Holder'ın telefonundan gelen şifreli kanıt belgesi,
+    Verifier tarafından bu endpoint ile açılır ve içeriği okunur.
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "Ziraat",
+      "encrypted_message": {
+        "protected": "...",
+        "iv": "...",
+        "ciphertext": "...",
+        "tag": "..."
+      }
+    }
+    ```
+    - `agent_alias`: Mesajı çözecek ajanın adı (zarfın hedef DID'ine sahip olan)
+    - `encrypted_message`: `messages/encrypt`'ten veya webhook'tan gelen şifreli zarf objesi
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "decrypted_message": {
+        "content": "{ \"text\": \"Diplomanız hazır\" }",
+        "sender_did": "V4SG...abc",
+        "message_type": "simple"
+      }
+    }
+    ```
+    **⚠️ Not:** Eğer zarf bu ajana ait değilse veya bozulmuşsa hata döner.
+    Webhook aktifse gelen mesajlar otomatik olarak `/didcomm/{alias}` üzerinden çözülür.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    try:
+        decrypted_message = agent.connection_decrypt(req.encrypted_message)
+        return {"decrypted_message": decrypted_message}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==============================================================================
+# WEBHOOK (TELEFONDAN GELEN RAW İSTEKLER İÇİN DİNLEYİCİ)
+# ==============================================================================
+from fastapi import Request
+
+@app.post("/didcomm/{agent_alias}", tags=["Webhook Dinleyicisi"])
+async def didcomm_webhook(agent_alias: str, req: Request):
+    """
+    Dış dünyadan (telefon, başka sunucu vb.) gelen DIDComm mesajlarını dinleyen webhook endpoint'i.
+
+    **Ne işe yarar?**
+    Bu endpoint, ajanınızın "posta kutusu" gibi çalışır. Karşı taraf (örn: öğrencinin telefonu)
+    bağlantı isteği, şifreli mesaj veya kanıt belgesi gönderdiğinde bu adrese POST yapar.
+    Sunucu gelen mesajın türünü otomatik olarak tespit eder ve uygun işlemi yapar:
+
+    1. **Bağlantı İsteği** (`connections/1.0/request`): Otomatik kabul eder ve bağlantıyı kurar.
+    2. **Onay Mesajı** (`ack`): Bağlantının başarıyla kurulduğunu teyit eder.
+    3. **Şifreli Mesaj** (diğer tüm türler): Zarfı açar, içeriği çözer ve döner.
+       - Kanıt belgesi (Presentation) gelirse loglar ve içeriği döner.
+       - Bilinmeyen mesaj türü ise `ignored` olarak işaretler.
+
+    **Kullanım senaryosu:**
+    `create-invitation` ile verdiğiniz `endpoint_url` bu adresi göstermelidir.
+    Örneğin `endpoint_url: "https://sunucu.com/didcomm/ITU"` olarak ayarlarsanız,
+    karşı tarafın tüm mesajları bu endpoint'e düşer.
+
+    **Örnek URL:**
+    ```
+    POST /didcomm/ITU
+    ```
+    - `agent_alias`: Mesajı alacak ajanın adı (URL'deki path parametresi)
+
+    **Body:** Karşı tarafın gönderdiği ham JSON — bağlantı isteği veya şifreli zarf olabilir.
+
+    **Olası Yanıtlar:**
+    - Bağlantı isteği gelirse → `connection_response` döner
+    - Onay gelirse → `{"status": "ok"}`
+    - Şifreli mesaj gelirse → `{"status": "message_decrypted", "content": { ... }}`
+    - Desteklenmeyen mesaj → `{"status": "ignored", "reason": "unsupported_message"}`
+
+    **⚠️ Not:** Bu endpoint genellikle doğrudan çağrılmaz — karşı tarafın uygulaması otomatik olarak buraya POST yapar.
+    Test amaçlı manuel olarak da kullanılabilir.
+    """
+    agent = active_agents.get(agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent bulunamadı.")
+
+    try:
+        body_data = await req.json()
+        message_type = body_data.get("@type", "")
+
+        if "connections/1.0/request" in message_type:
+            print("🚀 [WEBHOOK] Yeni bir Connection Request alındı!")
+            conn_res = agent.connection_accept_request(body_data, None)
+            return conn_res 
+            
+        elif "connections/1.0/ack" in message_type or "ack" in message_type:
+            return {"status": "ok"}
+            
+        else:
+            try:
+                decrypted = agent.connection_decrypt(body_data)
+                decrypted_content = json.loads(decrypted.get("content", "{}"))
+                dec_type = decrypted_content.get("@type", "")
+                
+                if "present-proof" in dec_type and "presentation" in dec_type:
+                    print("📄 [WEBHOOK] Öğrenci bir İspat (Presentation) Belgesi gönderdi!")
+                return {"status": "message_decrypted", "content": decrypted}
+            except Exception as dec_err:
+                return {"status": "ignored", "reason": "unsupported_message"}
+                
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

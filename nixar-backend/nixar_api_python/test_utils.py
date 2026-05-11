@@ -637,6 +637,10 @@ def create_nixar_agent_w_pqsgl_wallet(name, password_cb, role=None):
 
 
 def _register_agent_to_ledger(registration_info):
+    if not trustee:
+        logger.warning(f"Ağda otomatik DID kaydedecek (Trustee) yok. Ağ size ait değilse, DİD'yi ağ yöneticisine onaylatmalısınız: {json.dumps(registration_info)}")
+        return
+        
     logger.info(f"Agent registration info {json.dumps(registration_info)}")
     trustee.register_agent_to_ledger(json.dumps(registration_info))
 
@@ -694,9 +698,34 @@ def encode_base64(text: str):
     return base64.b64encode(text_bytes).decode("utf-8")
 
 
+import os
+
+# .env dosyasını basitçe oku (harici modül gerektirmez)
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(env_path):
+    with open(env_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, val = line.split("=", 1)
+                os.environ[key.strip()] = val.strip()
+
+# ÇEVRE DEĞİŞKENİ (ENVIRONMENT VARIABLE) İLE VON-NETWORK KONTROLÜ
+# Varsayılan olarak "1" (True). Eğer farklı bir ağda çalışacaksanız .env dosyasında USE_VON_NETWORK=0 yapabilirsiniz.
+USE_VON_NETWORK = os.environ.get("USE_VON_NETWORK", "1") == "1"
+
 trustee_password = native_string("123456")
 base64_inv_seed = encode_base64("000000000000000000000000Trustee1")
-trustee = Nixar("trustee", lambda: trustee_password, "TRUSTEE", base64_inv_seed)
+
+if USE_VON_NETWORK:
+    try:
+        trustee = Nixar("trustee", lambda: trustee_password, "TRUSTEE", base64_inv_seed)
+    except Exception as e:
+        logger.warning(f"VON-Network Trustee başlatılamadı: {e}")
+        trustee = None
+else:
+    logger.info("VON-Network pasif (USE_VON_NETWORK=0). Trustee ajanı oluşturulmadı.")
+    trustee = None
 
 def create_holder_agent_w_json_wallet(name, password_cb, base64_seed=None):
     try:

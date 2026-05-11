@@ -10,9 +10,9 @@ def print_step(step_name):
 
 def run_test():
     print_step("Cüzdanlar (Agents) Başlatılıyor")
-    requests.post(f"{BASE_URL}/agents/init", json={"alias": "ITU", "password": "123456", "role": "ENDORSER", "seed": "00000000000000000000000000000ITU"})
-    requests.post(f"{BASE_URL}/agents/init", json={"alias": "Ziraat", "password": "123456", "role": "ENDORSER", "seed": "00000000000000000000000000Ziraat"})
-    requests.post(f"{BASE_URL}/holder/init", json={"alias": "Ahmet", "password": "123456", "seed": "000000000000000000000000000Ahmet"})
+    requests.post(f"{BASE_URL}/agents/init", json={"alias": "ITU", "password": "12345678", "role": "ENDORSER", "seed": "00000000000000000000000000000ITU"})
+    requests.post(f"{BASE_URL}/agents/init", json={"alias": "Ziraat", "password": "12345678", "role": "ENDORSER", "seed": "00000000000000000000000000Ziraat"})
+    requests.post(f"{BASE_URL}/holder/init", json={"alias": "Ahmet", "password": "12345678", "seed": "000000000000000000000000000Ahmet"})
     
     print_step("Şema ve Kimlik Tanımı Oluşturuluyor (Üniversite)")
     # Aynı şema adıyla çatışmamak için random isim

@@ -44,3 +44,6 @@ tail -f ~/source/ssi/nixar-backend/nixar_api_python/server.log
 
 # Full flow testini çalıştır:
 python3 test_full_flow.py
+
+
+export USE_VON_NETWORK=0
