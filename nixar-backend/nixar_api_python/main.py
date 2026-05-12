@@ -808,6 +808,41 @@ def accept_connection_request(req: ConnectionAcceptReq):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class InvitationAcceptReq(BaseModel):
+    agent_alias: str
+    invitation: Dict[str, Any]
+
+@app.post("/api/v1/holder/accept-invitation", tags=["Vatandaş / Öğrenci (Holder)"])
+def holder_accept_invitation(req: InvitationAcceptReq):
+    """
+    (Simülasyon İçin) Mobil uygulamanın QR okuyup arka planda yapacağı işlemleri simüle eder.
+    Aries veya Nixar invitation objesini alır, Connection Request üretip Kurum'a gönderir
+    ve dönen Connection Response'u kabul edip bağlantıyı tamamlar.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    
+    try:
+        # 1. Holder Request Oluşturur
+        conn_req = agent.connection_create_request(req.invitation, None)
+        
+        # 2. Kurum'un webhook'una (veya direkt ajana) bu request'i atıp response almak
+        endpoint = req.invitation.get("endpoint", req.invitation.get("serviceEndpoint", ""))
+        issuer_alias = endpoint.split("/")[-1] if "/" in endpoint else "ITU"
+        
+        issuer_agent = active_agents.get(issuer_alias)
+        if not issuer_agent:
+            raise HTTPException(status_code=404, detail=f"Kurum ajanı ({issuer_alias}) bulunamadı. Webhook ulaşılamaz.")
+            
+        conn_res = issuer_agent.connection_accept_request(conn_req, None)
+        
+        # 3. Dönen response'u Holder kabul eder
+        agent.connection_accept_response(conn_res)
+        
+        return {"status": "success", "message": "Bağlantı Kurum ve Holder arasında başarıyla kuruldu!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/v1/connections/list", tags=["Cihaz Bağlantıları"])
 def get_connections(agent_alias: str):
     """
