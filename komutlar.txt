@@ -54,3 +54,24 @@ local docker
 
 cd /Users/personaone/source/ssi
 docker run --rm -d --name nixar-api-test -p 8080:8080 nixar-api:latest
+
+
+sunucu docker
+
+
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# Çıkıp tekrar gir
+
+# 2. Kodu çek
+git clone https://github.com/KULLANICI/REPO_ADI.git ssi
+cd ssi
+
+# 3. Build et
+docker build --platform linux/amd64 -f openshift-nixar-api/Dockerfile -t nixar-api:latest .
+
+# 4. Çalıştır
+docker run -d --name nixar-api --restart unless-stopped -p 8080:8080 nixar-api:latest
+
+# 5. Logları izle
+docker logs -f nixar-api
