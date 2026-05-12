@@ -1,0 +1,24 @@
+# Google Cloud VM / local Docker test için
+# Kullanım:
+#   docker compose up -d
+# Önce image build:
+#   docker build -f openshift-nixar-api/Dockerfile -t nixar-api:latest .
+#   (Repo kökünden çalıştırılmalı)
+
+services:
+  nixar-api:
+    image: nixar-api:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      # Agent kayıt defteri ve JSON cüzdan dosyaları → kalıcı volume'da saklanır
+      - nixar_data:/app/.tmp
+    environment:
+      - PYTHONPATH=/app
+      - LD_LIBRARY_PATH=/usr/local/lib
+    restart: unless-stopped
+    # OpenShift SCC ile uyumlu: user 1001, group 0
+    user: "1001:0"
+
+volumes:
+  nixar_data:

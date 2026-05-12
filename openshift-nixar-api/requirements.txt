@@ -1,0 +1,5 @@
+cffi
+markupsafe
+fastapi
+uvicorn[standard]
+pydantic

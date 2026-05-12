@@ -47,3 +47,10 @@ python3 test_full_flow.py
 
 
 export USE_VON_NETWORK=0
+
+
+
+local docker
+
+cd /Users/personaone/source/ssi
+docker run --rm -d --name nixar-api-test -p 8080:8080 nixar-api:latest
