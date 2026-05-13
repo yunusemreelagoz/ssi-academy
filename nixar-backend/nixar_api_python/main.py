@@ -630,6 +630,17 @@ class DecryptMessageReq(BaseModel):
     agent_alias: str
     encrypted_message: Dict[str, Any]
 
+class SignDataReq(BaseModel):
+    agent_alias: str
+    from_did: str
+    data: str  # base64 encoded
+
+class VerifySignatureReq(BaseModel):
+    agent_alias: str
+    their_did: str
+    signed_data: str   # base64 encoded orijinal veri
+    signature: str     # base64 encoded imza
+
 class SendProofRequestReq(BaseModel):
     agent_alias: str
     connection_id_or_did: str
@@ -1011,6 +1022,91 @@ def decrypt_message_from_connection(req: DecryptMessageReq):
     try:
         decrypted_message = agent.connection_decrypt(req.encrypted_message)
         return {"decrypted_message": decrypted_message}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/messages/sign", tags=["Cihaz Bağlantıları"])
+def sign_data_with_did(req: SignDataReq):
+    """
+    Ajanın DID'i ile veriyi imzalar (dijital imza oluşturur).
+
+    **Ne işe yarar?**
+    Holder veya Issuer kendi DID'i ile herhangi bir veriyi imzalayabilir.
+    Oluşturulan imza karşı tarafa gönderilebilir, karşı taraf da `messages/verify-signature`
+    ile imzayı doğrulayabilir.
+
+    **Kullanım senaryosu:**
+    Holder, kimliğini kanıtlamak için belirli bir veriyi kendi DID'i ile imzalar.
+    Bu imza banka (Verifier) tarafından doğrulanarak holder'ın gerçekten söz konusu DID'in
+    sahibi olduğu teyit edilir.
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "MobilCuzdan",
+      "from_did": "V4SG...abc",
+      "data": "SW1zYWxhbmFjYWsgdmVyaQ=="
+    }
+    ```
+    - `data`: Base64 kodlanmış imzalanacak veri (`base64.b64encode(b"veri").decode()`)
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "signature": "abc123...base64imza...",
+      "signed_data": "SW1zYWxhbmFjYWsgdmVyaQ=="
+    }
+    ```
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    try:
+        signature = agent.sign_with_did(req.from_did, req.data)
+        return {"signature": signature, "signed_data": req.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/messages/verify-signature", tags=["Cihaz Bağlantıları"])
+def verify_signature_with_did(req: VerifySignatureReq):
+    """
+    Bağlantı kurulmuş bir tarafın DID imzasını doğrular.
+
+    **Ne işe yarar?**
+    Karşı tarafın (`their_did`) daha önce `messages/sign` ile oluşturduğu imzayı doğrular.
+    İmzanın o DID'e ait özel anahtarla gerçekten oluşturulup oluşturulmadığını kontrol eder.
+
+    **Ön koşul:** İmzayı doğrulayacak ajan ile imzalayanın önceden DIDComm bağlantısı kurmuş olması gerekir.
+    Bağlantı sayesinde `their_did`'in public key bilgisi yerel cüzdanda mevcuttur.
+
+    **Dağıtık senaryo:**
+    1. Holder (Mac:8000) → `messages/sign` → imza oluşturur
+    2. Holder → imzayı şifreli olarak `messages/encrypt` ile zarflar ve Kurum'a gönderir
+    3. Kurum (GCloud:8080) → `messages/decrypt` → zarfı açar
+    4. Kurum → `messages/verify-signature` → imzayı doğrular ✅
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "ITU",
+      "their_did": "FjRf...xyz",
+      "signed_data": "SW1zYWxhbmFjYWsgdmVyaQ==",
+      "signature": "abc123...base64imza..."
+    }
+    ```
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "is_verified": true,
+      "their_did": "FjRf...xyz"
+    }
+    ```
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    try:
+        is_verified = agent.verify_signature_with_their_did(req.their_did, req.signed_data, req.signature)
+        return {"is_verified": is_verified, "their_did": req.their_did}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
