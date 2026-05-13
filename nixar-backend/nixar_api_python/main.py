@@ -815,32 +815,62 @@ class InvitationAcceptReq(BaseModel):
 @app.post("/api/v1/holder/accept-invitation", tags=["Vatandaş / Öğrenci (Holder)"])
 def holder_accept_invitation(req: InvitationAcceptReq):
     """
-    (Simülasyon İçin) Mobil uygulamanın QR okuyup arka planda yapacağı işlemleri simüle eder.
-    Aries veya Nixar invitation objesini alır, Connection Request üretip Kurum'a gönderir
-    ve dönen Connection Response'u kabul edip bağlantıyı tamamlar.
+    Mobil uygulamanın QR okuyup arka planda yapacağı işlemleri simüle eder.
+    Invitation'daki endpoint URL'inden Kurum'un base URL'ini türetir ve
+    /api/v1/connections/accept-request'e HTTP POST yaparak dağıtık çalışır —
+    Kurum aynı sunucuda olmak zorunda değildir.
     """
+    import requests as http_requests
+    from urllib.parse import urlparse
+
     agent = active_agents.get(req.agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
-    
+
     try:
-        # 1. Holder Request Oluşturur
+        # 1. Holder, davetiyeyi işleyip Connection Request oluşturur
         conn_req = agent.connection_create_request(req.invitation, None)
-        
-        # 2. Kurum'un webhook'una (veya direkt ajana) bu request'i atıp response almak
+
+        # 2. endpoint URL'inden Kurum'un base URL'ini ve alias'ını türet
+        #    Örnek: http://34.76.10.78:8080/didcomm/ITU
+        #    → base_url = http://34.76.10.78:8080
+        #    → issuer_alias = ITU
         endpoint = req.invitation.get("endpoint", req.invitation.get("serviceEndpoint", ""))
-        issuer_alias = endpoint.split("/")[-1] if "/" in endpoint else "ITU"
-        
-        issuer_agent = active_agents.get(issuer_alias)
-        if not issuer_agent:
-            raise HTTPException(status_code=404, detail=f"Kurum ajanı ({issuer_alias}) bulunamadı. Webhook ulaşılamaz.")
-            
-        conn_res = issuer_agent.connection_accept_request(conn_req, None)
-        
-        # 3. Dönen response'u Holder kabul eder
+        if not endpoint:
+            raise HTTPException(status_code=400, detail="Davetiyede endpoint URL bulunamadı.")
+
+        parsed = urlparse(endpoint)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        issuer_alias = parsed.path.rstrip("/").split("/")[-1]
+
+        accept_url = f"{base_url}/api/v1/connections/accept-request"
+        print(f"🌐 [HOLDER] Kurum API'sine bağlanılıyor: {accept_url} (alias: {issuer_alias})")
+
+        # 3. Kurum'un accept-request endpoint'ine Connection Request'i gönder
+        webhook_resp = http_requests.post(
+            accept_url,
+            json={"agent_alias": issuer_alias, "connection_request": conn_req},
+            timeout=15
+        )
+
+        if webhook_resp.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=502,
+                detail=f"Kurum API'si hata döndü ({webhook_resp.status_code}): {webhook_resp.text}"
+            )
+
+        resp_json = webhook_resp.json()
+        conn_res = resp_json.get("connection_response", resp_json)
+        print(f"✅ [HOLDER] Kurum'dan Connection Response alındı.")
+
+        # 4. Kurum'dan gelen yanıtı Holder kabul eder — bağlantı tamamlanır
         agent.connection_accept_response(conn_res)
-        
+
         return {"status": "success", "message": "Bağlantı Kurum ve Holder arasında başarıyla kuruldu!"}
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/connections/list", tags=["Cihaz Bağlantıları"])
