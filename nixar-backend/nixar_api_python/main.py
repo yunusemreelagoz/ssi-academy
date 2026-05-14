@@ -1410,6 +1410,7 @@ def submit_presentation(req: SubmitPresentationReq):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/didcomm/{agent_alias}", tags=["Webhook Dinleyicisi"])
 async def didcomm_webhook(agent_alias: str, req: Request):
     """
     Dış dünyadan (telefon, başka sunucu vb.) gelen DIDComm mesajlarını dinleyen webhook endpoint'i.
