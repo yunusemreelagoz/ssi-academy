@@ -242,115 +242,210 @@ def demo_webhook_connect():
     else:
         print("\n❌ Aktif bağlantı yok")
 
+def demo_credential_flow():
+    """
+    Tam Credential Issuance + Presentation akışı (webhook üzerinden).
 
-    print("\n" + "="*50)
-    print("🔗 WEBHOOK BAĞLANTI DEMO")
-    print("="*50)
+    Akış:
+      1.  Kurum schema + cred_def oluşturur (zaten varsa atlar)
+      2.  Kurum prepare-offer çağırır → offer + cred_values sunucuda saklanır
+      3.  Holder offer'dan credential request üretir
+      4.  Holder cred_req'i MessageTypeCredentialRequest olarak şifreler → /didcomm/ITU'ya POST eder
+      5.  Webhook otomatik credential imzalar → encrypted_credential döner
+      6.  Holder credential'ı açar ve cüzdana kaydeder
+      7.  Kurum prepare-presentation-request çağırır
+      8.  Holder presentation oluşturur → MessageTypePresentation olarak şifreler → /didcomm/ITU'ya POST eder
+      9.  Webhook otomatik doğrular → {is_valid, revealed_data} döner
 
-    # 1. Holder başlat
-    print_step("1. Holder Başlatılıyor")
-    res = requests.post(f"{HOLDER_URL}/api/v1/holder/init", json={
-        "alias": HOLDER_ALIAS,
-        "password": "123456",
-        "seed": "000000000000000000000000000Mobil"
-    })
-    print(res.json().get("message", res.text))
+    Kullanım: python3 wallmobil.py credential
+    Ön koşul: Holder ve ITU arasında aktif bağlantı olmalı (önce 'webhook' veya 'connect' çalıştırın).
+    """
+    print("\n" + "="*60)
+    print("🎓 KREDİ VERME + DOĞRULAMA DEMO (Webhook)")
+    print("="*60)
 
-    # 2. Kurum başlat
-    print_step("2. Kurum Başlatılıyor")
-    requests.post(f"{KURUM_URL}/api/v1/agents/init", json={
-        "alias": "ITU",
-        "password": "123456",
-        "role": "ENDORSER",
-        "seed": "00000000000000000000000000000ITU"
-    })
-
-    # 3. Kurum'dan davetiye al
-    print_step("3. Davetiye Alınıyor")
-    res = requests.post(f"{KURUM_URL}/api/v1/connections/create-invitation", json={
-        "agent_alias": "ITU",
-        "label": "İTÜ Webhook Testi",
-        "endpoint_url": f"{KURUM_URL}/didcomm/ITU"
-    })
-    invitation = res.json().get("invitation")
-    print(f"Davetiye alındı: {invitation.get('did')}")
-
-    # 4. Holder davetiyeden conn_req üretir (local API'ye sor)
-    print_step("4. Holder Connection Request Üretiyor")
-    # Bunu doğrudan nixar üzerinden yapmak için holder/accept-invitation'ı
-    # ama bu sefer endpoint'i webhook'a yönlendiriyoruz — invitation'daki endpoint zaten /didcomm/ITU
-    # Holder local API'si conn_req üretip /didcomm/ITU'ya POST yapacak
-
-    # Holder'ın connection_create_request'ini elde etmek için önce local bir endpoint lazım
-    # Mevcut hold/accept-invitation zaten bunu yapıyor ama /api/v1/connections/accept-request'e gönderiyor
-    # Biz manual akışı simüle edeceğiz: conn_req'i üret → /didcomm/ITU'ya POST et
-
-    # Holder local API'sinden conn_req al (test_utils üzerinden)
-    # Bunun için custom bir endpoint yok, bu yüzden /api/v1/holder/accept-invitation'ın
-    # endpoint parsing'ini kullanıyoruz — invitation endpoint'i zaten /didcomm/ITU işaret ediyor
-    # accept-invitation kodu endpoint'e parse ederek /api/v1/connections/accept-request'e gider
-    # Biz ise direkt /didcomm/ITU'ya göndermek istiyoruz
-
-    # Bunun için conn_req'i döndüren yeni bir endpoint eklemek yerine,
-    # accept-invitation'ı çağırıp Kurum'un /didcomm/ITU'sundan yanıtı yakalayacağız.
-    # Ama önce webhook'u test etmek için raw conn_req üretip doğrudan POST edelim.
-
-    # Holder tarafında conn_req üretmek için internal endpoint yok; 
-    # Bu nedenle /api/v1/holder/accept-invitation'ı kullanıyoruz — 
-    # invitation endpoint'i /didcomm/ITU'ya işaret ettiğinden accept-invitation içindeki 
-    # URL parsing'i /api/v1/connections/accept-request'e değil webhook'a gidecek şekilde
-    # invitation'ı değiştirip test edeceğiz.
-
-    # invitation endpoint'ini webhook URL ile değiştir (zaten /didcomm/ITU)
-    # accept-invitation kodu:
-    #   base_url = http://34.76.10.78:8080
-    #   issuer_alias = ITU
-    #   accept_url = base_url + /api/v1/connections/accept-request   ← bunu webhook ile değiştirelim
-    
-    # En temiz yaklaşım: invitation endpoint'ini /api/v1/connections/accept-request yerine
-    # /didcomm/ITU'ya yönlendirmek için accept-invitation'da bir "use_webhook" seçeneği eklemek
-    # ya da direkt conn_req'i webhook'a atmak.
-    
-    # Şimdilik: accept-invitation'ı çağırıyoruz ama Kurum tarafındaki log'dan webhook'un tetiklenip
-    # tetiklenmediğini görmek için conn_req'i manuel olarak /didcomm/ITU'ya POST ediyoruz.
-    
-    # Holder'da conn_req üretip webhook'a atmak için geçici çözüm:
-    # invitation endpoint'ini /didcomm/ITU olarak bırak, ama accept-invitation'ı çağırmak
-    # yerine doğrudan webhook'u test etmek için raw POST yapalım.
-    
-    # Önce holder'da bir invitation'dan conn_req üretelim:
-    # Bu için /api/v1/holder/create-conn-request gibi bir endpoint gerekir
-    # Şimdilik accept-invitation'daki akışı simüle etmek için:
-    # conn_req'i üretip webhook'a atmak için accept-invitation'ı kullanalım
-    # ama invitation'daki endpoint'i direkt webhook URL olarak verelim.
-    
-    # invitation zaten endpoint: /didcomm/ITU içeriyor
-    # accept-invitation → parse → base_url/api/v1/connections/accept-request'e gider
-    # Bu testi gerçek webhook üzerinden yapmak için main.py'e yeni bir endpoint ekleyelim.
-    
-    print("ℹ️  Bu test için önce Holder'dan raw conn_req alınması gerekiyor.")
-    print("   Bunun için /api/v1/holder/create-conn-request endpoint'i henüz yok.")
-    print("   Şimdi mevcut accept-invitation akışını webhook üzerinden test ediyoruz...")
-    
-    # invitation endpoint'ini değiştirmeden accept-invitation çağır
-    # Kurum sunucusunda webhook log'larını görmek için:
-    res = requests.post(f"{HOLDER_URL}/api/v1/holder/accept-invitation", json={
-        "agent_alias": HOLDER_ALIAS,
-        "invitation": invitation
-    })
-    print("Yanıt:", json.dumps(res.json(), indent=2))
-
-    # 5. Bağlantıları kontrol et
-    print_step("5. Bağlantılar Kontrol Ediliyor")
+    # ── Bağlantı bilgilerini al ──────────────────────────────────
     res = requests.get(f"{HOLDER_URL}/api/v1/connections/list?agent_alias={HOLDER_ALIAS}")
     conns = res.json().get("connections", [])
     active = [c for c in conns if c.get("connection_state") == "Active" and c.get("their_did")]
-    if active:
-        print(f"✅ Bağlantı aktif! their_did: {active[-1]['their_did']}")
-    else:
-        print("❌ Aktif bağlantı yok")
+    if not active:
+        print("❌ Aktif bağlantı yok! Önce 'python3 wallmobil.py webhook' çalıştırın.")
+        return
 
-if __name__ == "__main__":
+    holder_conn    = active[-1]
+    holder_my_did  = holder_conn["my_did"]
+    holder_their   = holder_conn["their_did"]   # Kurum'un DID'i (Holder gözünden)
+
+    res = requests.get(f"{KURUM_URL}/api/v1/connections/list?agent_alias=ITU")
+    kurum_conns = res.json().get("connections", [])
+    kurum_active = [c for c in kurum_conns if c.get("connection_state") == "Active" and c.get("their_did")]
+    if not kurum_active:
+        print("❌ Kurum tarafında aktif bağlantı yok!")
+        return
+
+    kurum_conn   = kurum_active[-1]
+    kurum_my_did = kurum_conn["my_did"]
+    kurum_their  = kurum_conn["their_did"]   # Holder'ın DID'i (Kurum gözünden)
+
+    print(f"✅ Holder my_did   : {holder_my_did}")
+    print(f"✅ Kurum  their_did: {holder_their}")
+
+    # ── ADIM 1: Schema ──────────────────────────────────────────
+    print_step("1. Schema Oluşturuluyor")
+    import random, time as _time
+    schema_ver = f"1.{random.randint(100,999)}"   # her seferinde farklı versiyon
+    res = requests.post(f"{KURUM_URL}/api/v1/schema/create", json={
+        "agent_alias": "ITU",
+        "schema_name": "ITU_Diploma",
+        "attributes": ["ad", "soyad", "departman", "mezuniyet_yili", "gpa"],
+        "version": schema_ver
+    })
+    schema_resp = res.json()
+    print(json.dumps(schema_resp, indent=2, ensure_ascii=False))
+    if "schema_id" not in schema_resp:
+        print("❌ Schema oluşturulamadı. Ledger erişimi kontrol edin.")
+        return
+    schema_id = schema_resp["schema_id"]
+
+    # ── ADIM 2: Credential Definition ───────────────────────────
+    print_step("2. Credential Definition Oluşturuluyor")
+    res = requests.post(f"{KURUM_URL}/api/v1/credential-definition/create", json={
+        "agent_alias": "ITU",
+        "schema_id": schema_id,
+        "is_revokable": False
+    })
+    cred_def_resp = res.json()
+    print(json.dumps(cred_def_resp, indent=2, ensure_ascii=False))
+    if "cred_def_id" not in cred_def_resp:
+        print("❌ Credential Definition oluşturulamadı.")
+        return
+    cred_def_id = cred_def_resp["cred_def_id"]
+
+    # ── ADIM 3: Kurum Offer Hazırlar (cred_values sunucuda saklanır) ──
+    print_step("3. Kurum Credential Offer Hazırlıyor (prepare-offer)")
+    diploma_values = {
+        "ad":             {"raw": "Ahmet",                  "encoded": "1"},
+        "soyad":          {"raw": "Yilmaz",                 "encoded": "2"},
+        "departman":      {"raw": "Bilgisayar Muhendisligi", "encoded": "3"},
+        "mezuniyet_yili": {"raw": "2024",                   "encoded": "2024"},
+        "gpa":            {"raw": "3.5",                    "encoded": "35"},
+    }
+    res = requests.post(f"{KURUM_URL}/api/v1/issuer/prepare-offer", json={
+        "agent_alias": "ITU",
+        "cred_def_id": cred_def_id,
+        "cred_values": diploma_values
+    })
+    offer_resp = res.json()
+    print(json.dumps(offer_resp, indent=2, ensure_ascii=False))
+    offer = offer_resp["offer"]
+
+    # ── ADIM 4: Holder Credential Request Üretir ────────────────
+    print_step("4. Holder Credential Request Üretiyor")
+    res = requests.post(
+        f"{HOLDER_URL}/api/v1/holder/create-request?agent_alias={HOLDER_ALIAS}",
+        json=offer
+    )
+    cred_req_resp = res.json()
+    cred_req = cred_req_resp["credential_request"]
+    print("Credential Request oluşturuldu ✅")
+    print(f"  Anahtarlar: {list(cred_req.keys())}")
+
+    # ── ADIM 5: Holder cred_req'i şifreler → /didcomm/ITU'ya gönderir ──
+    print_step("5. Holder CredentialRequest Şifreli Olarak Webhook'a Gönderiyor")
+    res = requests.post(f"{HOLDER_URL}/api/v1/messages/encrypt", json={
+        "agent_alias": HOLDER_ALIAS,
+        "from_did":    holder_my_did,
+        "their_did":   holder_their,
+        "message":     cred_req,
+        "message_type": "credential_request"
+    })
+    encrypted_cred_req = res.json()["encrypted_message"]
+
+    webhook_res = requests.post(f"{KURUM_URL}/didcomm/ITU", json=encrypted_cred_req)
+    webhook_body = webhook_res.json()
+    print(json.dumps({k: v if k != "encrypted_credential" else "{ ... }" for k, v in webhook_body.items()}, indent=2))
+
+    if webhook_body.get("status") != "credential_issued":
+        print(f"❌ Credential issuance başarısız: {webhook_body}")
+        return
+    encrypted_credential = webhook_body["encrypted_credential"]
+
+    # ── ADIM 6: Holder Credential'ı Açar ve Cüzdana Kaydeder ───
+    print_step("6. Holder Credential'ı Açıyor ve Cüzdana Kaydediyor")
+    res = requests.post(f"{HOLDER_URL}/api/v1/messages/decrypt", json={
+        "agent_alias":      HOLDER_ALIAS,
+        "encrypted_message": encrypted_credential
+    })
+    decrypt_resp = res.json()
+    credential_content = decrypt_resp["decrypted_message"]["content"]
+    if isinstance(credential_content, str):
+        credential_content = json.loads(credential_content)
+
+    res = requests.post(
+        f"{HOLDER_URL}/api/v1/holder/store-credential?agent_alias={HOLDER_ALIAS}",
+        json=credential_content
+    )
+    print(json.dumps(res.json(), indent=2, ensure_ascii=False))
+    print("✅ Diploma cüzdana kaydedildi!")
+
+    # ── ADIM 7: Kurum Proof Request Hazırlar ────────────────────
+    print_step("7. Kurum Presentation Request Hazırlıyor")
+    pres_request = {
+        "name":    "ITU_Diploma_Dogrulama",
+        "version": "1.0",
+        "nonce":   str(random.getrandbits(64)),
+        "requestedAttributes": {
+            "attr_ad":      {"name": "ad",             "restrictions": [{"cred_def_id": cred_def_id}]},
+            "attr_dept":    {"name": "departman",      "restrictions": [{"cred_def_id": cred_def_id}]},
+            "attr_yil":     {"name": "mezuniyet_yili", "restrictions": [{"cred_def_id": cred_def_id}]},
+        },
+        "requestedPredicates": {
+            "pred_gpa": {"name": "gpa", "p_type": ">=", "p_value": 30, "restrictions": [{"cred_def_id": cred_def_id}]}
+        }
+    }
+    res = requests.post(f"{KURUM_URL}/api/v1/verifier/prepare-presentation-request", json={
+        "agent_alias": "ITU",
+        "presentation_request": pres_request
+    })
+    print(json.dumps(res.json(), indent=2, ensure_ascii=False))
+
+    # ── ADIM 8: Holder Presentation Üretir ve Webhook'a Gönderir ──
+    print_step("8. Holder Presentation Oluşturuyor → Webhook'a Gönderiyor")
+    res = requests.post(f"{HOLDER_URL}/api/v1/holder/create-presentation", json={
+        "agent_alias": HOLDER_ALIAS,
+        "presentation_request": pres_request
+    })
+    presentation = res.json()["presentation"]
+    print("Presentation oluşturuldu ✅")
+
+    res = requests.post(f"{HOLDER_URL}/api/v1/messages/encrypt", json={
+        "agent_alias": HOLDER_ALIAS,
+        "from_did":    holder_my_did,
+        "their_did":   holder_their,
+        "message":     presentation,
+        "message_type": "presentation"
+    })
+    encrypted_pres = res.json()["encrypted_message"]
+
+    webhook_res = requests.post(f"{KURUM_URL}/didcomm/ITU", json=encrypted_pres)
+    verify_result = webhook_res.json()
+
+    # ── ADIM 9: Sonuç ───────────────────────────────────────────
+    print_step("9. Doğrulama Sonucu")
+    print(json.dumps(verify_result, indent=2, ensure_ascii=False))
+
+    if verify_result.get("is_valid"):
+        revealed = verify_result.get("revealed_data", {})
+        print("\n🎉 DOĞRULAMA BAŞARILI!")
+        print("   Kurum'un Gördükleri:")
+        for k, v in revealed.items():
+            print(f"     {k}: {v}")
+        print("   GPA: GİZLİ — ama matematiksel olarak >= 3.0 kanıtlandı! 🔐")
+    else:
+        print("\n❌ DOĞRULAMA BAŞARISIZ!")
+
+
+
     import sys
     mode = sys.argv[1] if len(sys.argv) > 1 else "connect"
     try:
@@ -358,6 +453,8 @@ if __name__ == "__main__":
             demo_sign_verify()
         elif mode == "webhook":
             demo_webhook_connect()
+        elif mode == "credential":
+            demo_credential_flow()
         else:
             main()
     except requests.exceptions.ConnectionError:

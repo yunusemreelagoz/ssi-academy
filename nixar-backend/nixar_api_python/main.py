@@ -30,6 +30,18 @@ app = FastAPI(
 active_agents: Dict[str, Nixar] = {}
 
 # ==============================================================================
+# WEBHOOK DURUM DEPOLAMA
+# Webhook gelen credential_request veya presentation'ı işleyebilmek için
+# Issuer'ın önceden oluşturduğu offer/request bilgileri hafızada tutulur.
+# ==============================================================================
+
+# Anahtar: issuer_nonce  |  Değer: {agent_alias, cred_def_id, issuer_nonce, cred_values}
+pending_credential_offers: Dict[str, dict] = {}
+
+# Anahtar: presentation nonce  |  Değer: {agent_alias, presentation_request}
+pending_presentation_requests: Dict[str, dict] = {}
+
+# ==============================================================================
 # KALICI DID KAYIT DEFTERİ (Agent Registry)
 # Her kayıt: { "did": "...", "seed_hash": "sha256(seed)" }
 # Best Practice:
@@ -675,6 +687,7 @@ class EncryptMessageReq(BaseModel):
     from_did: str
     their_did: str
     message: Any
+    message_type: str = "simple"  # simple | credential_offer | credential_request | credential | presentation_request | presentation
 
 class DecryptMessageReq(BaseModel):
     agent_alias: str
@@ -695,6 +708,23 @@ class SendProofRequestReq(BaseModel):
     agent_alias: str
     connection_id_or_did: str
     presentation_request: Dict[str, Any]
+
+class CredentialOfferCreateReq(BaseModel):
+    agent_alias: str
+    cred_def_id: str
+    cred_values: Dict[str, Any]   # {"ad": {"raw": "Ahmet", "encoded": "1"}, ...}
+
+class PresentationRequestCreateReq(BaseModel):
+    agent_alias: str
+    presentation_request: Dict[str, Any]   # name, version, nonce, requestedAttributes, requestedPredicates
+
+class ConnReqCreateReq(BaseModel):
+    agent_alias: str
+    invitation: Dict[str, Any]
+
+class ConnResAcceptReq(BaseModel):
+    agent_alias: str
+    connection_response: Dict[str, Any]
 
 # ==============================================================================
 # DIDCOMM BAĞLANTILARI VE ÇİFT YÖNLÜ (P2P) İSTEKLER
@@ -1052,11 +1082,20 @@ def encrypt_message_for_connection(req: EncryptMessageReq):
     **⚠️ Not:** Dönen `encrypted_message` zarfını karşı tarafın webhook URL'ine POST edin.
     Karşı taraf `messages/decrypt` ile açabilir.
     """
+    _type_map = {
+        "simple":               NixarMessageType.MESSAGE_TYPE_SIMPLE,
+        "credential_offer":     NixarMessageType.MESSAGE_TYPE_CREDENTIAL_OFFER,
+        "credential_request":   NixarMessageType.MESSAGE_TYPE_CREDENTIAL_REQUEST,
+        "credential":           NixarMessageType.MESSAGE_TYPE_CREDENTIAL,
+        "presentation_request": NixarMessageType.MESSAGE_TYPE_PRESENTATION_REQUEST,
+        "presentation":         NixarMessageType.MESSAGE_TYPE_PRESENTATION,
+    }
     agent = active_agents.get(req.agent_alias)
     if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    msg_type = _type_map.get(req.message_type, NixarMessageType.MESSAGE_TYPE_SIMPLE)
     try:
         encrypted_message = agent.connection_encrypt(
-            req.from_did, req.their_did, NixarMessageType.MESSAGE_TYPE_SIMPLE, req.message
+            req.from_did, req.their_did, msg_type, req.message
         )
         return {"encrypted_message": encrypted_message}
     except Exception as e:
@@ -1201,7 +1240,109 @@ def verify_signature_with_did(req: VerifySignatureReq):
 # ==============================================================================
 from fastapi import Request
 
-@app.post("/didcomm/{agent_alias}", tags=["Webhook Dinleyicisi"])
+@app.post("/api/v1/issuer/prepare-offer", tags=["Verici / Üniversite (Issuer)"])
+def prepare_credential_offer(req: CredentialOfferCreateReq):
+    """
+    Issuer, Credential Offer oluşturur ve webhook tarafından otomatik işlenebilmesi için
+    credential değerlerini sunucuda saklar.
+
+    Holder'dan `/didcomm/ITU` webhook'una `MessageTypeCredentialRequest` geldiğinde,
+    sunucu burada kaydedilen `cred_values` ve `issuer_nonce` ile credentials otomatik imzalar.
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "ITU",
+      "cred_def_id": "4fUYw6T3...:3:CL:20:diploma",
+      "cred_values": {
+        "ad":              { "raw": "Ahmet",   "encoded": "1" },
+        "soyad":           { "raw": "Yılmaz",  "encoded": "2" },
+        "mezuniyet_yili":  { "raw": "2024",    "encoded": "2024" },
+        "gpa":             { "raw": "3.5",     "encoded": "35" }
+      }
+    }
+    ```
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "offer": { ... },
+      "issuer_nonce": "748392019283746152"
+    }
+    ```
+    Dönen `offer`'ı QR koda basın veya Holder'a iletin.
+    """
+    import random
+    agent = active_agents.get(req.agent_alias)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent aktif değil")
+
+    nonce = str(random.getrandbits(80))
+    offer = agent.issuer_create_credential_offer(req.cred_def_id, nonce)
+
+    # Webhook için sakla
+    pending_credential_offers[nonce] = {
+        "agent_alias": req.agent_alias,
+        "cred_def_id": req.cred_def_id,
+        "issuer_nonce": nonce,
+        "cred_values": req.cred_values,
+    }
+
+    return {"offer": offer, "issuer_nonce": nonce}
+
+
+@app.post("/api/v1/verifier/prepare-presentation-request", tags=["Doğrulayıcı / Banka (Verifier)"])
+def prepare_presentation_request(req: PresentationRequestCreateReq):
+    """
+    Verifier (banka/kurum), Presentation Request oluşturur ve webhook tarafından otomatik
+    doğrulanabilmesi için sunucuda saklar.
+
+    Holder'dan `/didcomm/{alias}` webhook'una `MessageTypePresentation` geldiğinde,
+    sunucu burada kaydedilen presentation_request ile otomatik `verifier_verify_presentation()` çağırır.
+
+    **Örnek İstek:**
+    ```json
+    {
+      "agent_alias": "Ziraat",
+      "presentation_request": {
+        "name": "Banka_Kimlik_Dogrulama",
+        "version": "1.0",
+        "nonce": "1234567890",
+        "requestedAttributes": {
+          "attr_departman": { "name": "departman", "restrictions": [{ "cred_def_id": "..." }] }
+        },
+        "requestedPredicates": {
+          "pred_gpa": { "name": "gpa", "p_type": ">=", "p_value": 30, "restrictions": [{ "cred_def_id": "..." }] }
+        }
+      }
+    }
+    ```
+
+    **Örnek Yanıt:**
+    ```json
+    {
+      "status": "ready",
+      "nonce": "1234567890"
+    }
+    ```
+    `presentation_request`'i QR koda basın veya Holder'a iletin.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent aktif değil")
+
+    nonce = req.presentation_request.get("nonce")
+    if not nonce:
+        raise HTTPException(status_code=400, detail="presentation_request içinde 'nonce' alanı zorunludur.")
+
+    pending_presentation_requests[nonce] = {
+        "agent_alias": req.agent_alias,
+        "presentation_request": req.presentation_request,
+    }
+
+    return {"status": "ready", "nonce": nonce, "presentation_request": req.presentation_request}
+
+
 async def didcomm_webhook(agent_alias: str, req: Request):
     """
     Dış dünyadan (telefon, başka sunucu vb.) gelen DIDComm mesajlarını dinleyen webhook endpoint'i.
@@ -1246,48 +1387,162 @@ async def didcomm_webhook(agent_alias: str, req: Request):
         body_data = await req.json()
         message_type = body_data.get("@type", "")
 
+        # ── Şifrelenmemiş Bağlantı İstekleri ─────────────────────────────────
         if "connections/1.0/request" in message_type:
-            print("🚀 [WEBHOOK] Yeni bir Connection Request alındı! (@type ile)")
+            print("🚀 [WEBHOOK] Connection Request alındı (@type ile)")
             conn_res = agent.connection_accept_request(body_data, None)
-            return conn_res 
-            
+            return conn_res
+
         elif "connections/1.0/ack" in message_type or "ack" in message_type:
             return {"status": "ok"}
 
         elif not message_type:
-            # @type alanı yok — önce nixar connection_request olarak dene (nixar conn_req @type içermez)
+            # @type yok → önce nixar conn_req dene (nixar conn_req @type içermez, şifreli)
             try:
-                print("🚀 [WEBHOOK] @type yok, Connection Request olarak deneniyor...")
+                print("🚀 [WEBHOOK] @type yok → Connection Request olarak deneniyor...")
                 conn_res = agent.connection_accept_request(body_data, None)
-                print("✅ [WEBHOOK] Connection Request başarıyla kabul edildi.")
+                print("✅ [WEBHOOK] Connection Request kabul edildi.")
                 return {"status": "success", "connection_response": conn_res}
             except Exception:
-                # Connection request değil, şifreli mesaj olabilir
-                try:
-                    decrypted = agent.connection_decrypt(body_data)
-                    decrypted_content = json.loads(decrypted.get("content", "{}"))
-                    dec_type = decrypted_content.get("@type", "")
-                    if "present-proof" in dec_type and "presentation" in dec_type:
-                        print("📄 [WEBHOOK] İspat Belgesi alındı!")
-                    return {"status": "message_decrypted", "content": decrypted}
-                except Exception as dec_err:
-                    return {"status": "ignored", "reason": "unsupported_message"}
-            
-        else:
+                pass  # conn_req değil, şifreli uygulama mesajı olabilir — aşağıda decrypt edilecek
+
+        # ── Şifreli Mesajlar: Decrypt Et, Tipe Göre İşle ─────────────────────
+        try:
+            decrypted = agent.connection_decrypt(body_data)
+        except Exception as dec_err:
+            return {"status": "ignored", "reason": "decrypt_failed", "detail": str(dec_err)}
+
+        msg_type: str = decrypted.get("messageType", "")
+        sender_did: str = decrypted.get("senderDid", "")
+        content_raw = decrypted.get("content", "{}")
+        try:
+            content = json.loads(content_raw) if isinstance(content_raw, str) else content_raw
+        except Exception:
+            content = {}
+
+        print(f"📨 [WEBHOOK] Şifreli mesaj açıldı | tip={msg_type} | gönderen={sender_did}")
+
+        # ── MessageTypeCredentialRequest ──────────────────────────────────────
+        # Holder, Issuer'ın teklifine karşılık credential talep etti.
+        # Pending offer'dan nonce+cred_values'ı bul → credential imzala → geri gönder.
+        if msg_type == "MessageTypeCredentialRequest":
+            print("📋 [WEBHOOK] Credential Request alındı → credential imzalanıyor...")
+            cred_def_id_in_req = content.get("cred_def_id", "")
+
+            # pending_credential_offers içinde bu cred_def_id için hazırlanmış bir offer bul
+            matched = next(
+                (v for v in pending_credential_offers.values()
+                 if v["agent_alias"] == agent_alias and v["cred_def_id"] == cred_def_id_in_req),
+                None
+            )
+            if not matched:
+                return {"status": "error", "reason": "Bu cred_def_id için hazırlanmış pending offer yok. Önce /api/v1/issuer/prepare-offer çağırın."}
+
+            cred_info = agent.issuer_create_credential(
+                content, matched["cred_values"], matched["issuer_nonce"]
+            )
+            credential = cred_info["credential"]
+
+            # Holder'a şifreli olarak credential gönder
+            conn_info = agent.get_connection_by_their_did(sender_did)
+            my_did = conn_info.get("myDid") or conn_info.get("my_did", "")
+            encrypted_cred = agent.connection_encrypt(
+                my_did, sender_did,
+                NixarMessageType.MESSAGE_TYPE_CREDENTIAL,
+                credential
+            )
+            del pending_credential_offers[matched["issuer_nonce"]]
+            print("✅ [WEBHOOK] Credential imzalandı ve Holder'a gönderildi.")
+            return {"status": "credential_issued", "encrypted_credential": encrypted_cred}
+
+        # ── MessageTypeCredential ─────────────────────────────────────────────
+        # Issuer, Holder'a imzalı credential gönderdi.
+        # Holder otomatik olarak cüzdana kaydeder.
+        elif msg_type == "MessageTypeCredential":
+            print("🎓 [WEBHOOK] Credential alındı → cüzdana kaydediliyor...")
+            agent.prover_store_credential(None, content)
+            print("✅ [WEBHOOK] Credential cüzdana kaydedildi.")
+            return {"status": "credential_stored"}
+
+        # ── MessageTypeCredentialOffer ────────────────────────────────────────
+        # Issuer, Holder'a credential teklif etti (Issuer-Initiated akış).
+        # Holder otomatik credential request oluşturur ve şifreli geri gönderir.
+        elif msg_type == "MessageTypeCredentialOffer":
+            print("📬 [WEBHOOK] Credential Offer alındı → credential request oluşturuluyor...")
+            cred_req = agent.prover_create_credential_request(content)
+            conn_info = agent.get_connection_by_their_did(sender_did)
+            my_did = conn_info.get("myDid") or conn_info.get("my_did", "")
+            encrypted_req = agent.connection_encrypt(
+                my_did, sender_did,
+                NixarMessageType.MESSAGE_TYPE_CREDENTIAL_REQUEST,
+                cred_req
+            )
+            print("✅ [WEBHOOK] Credential Request Issuer'a gönderildi.")
+            return {"status": "credential_request_sent", "encrypted_credential_request": encrypted_req}
+
+        # ── MessageTypePresentationRequest ────────────────────────────────────
+        # Verifier, Holder'dan kanıt belgesi istedi.
+        # Holder cüzdanından ilgili credential'ı bulur, presentation oluşturur ve gönderir.
+        elif msg_type == "MessageTypePresentationRequest":
+            print("🏦 [WEBHOOK] Presentation Request alındı → kanıt hazırlanıyor...")
             try:
-                decrypted = agent.connection_decrypt(body_data)
-                decrypted_content = json.loads(decrypted.get("content", "{}"))
-                dec_type = decrypted_content.get("@type", "")
-                
-                if "present-proof" in dec_type and "presentation" in dec_type:
-                    print("📄 [WEBHOOK] Öğrenci bir İspat (Presentation) Belgesi gönderdi!")
-                return {"status": "message_decrypted", "content": decrypted}
-            except Exception as dec_err:
-                return {"status": "ignored", "reason": "unsupported_message"}
-                
+                agent.prover_fetch_credential_for_presentation_request(content)
+            except Exception:
+                pass  # bazı nixar versiyonlarında bu adım opsiyonel
+            presentation = agent.prover_create_presentation(content, {})
+            conn_info = agent.get_connection_by_their_did(sender_did)
+            my_did = conn_info.get("myDid") or conn_info.get("my_did", "")
+            encrypted_pres = agent.connection_encrypt(
+                my_did, sender_did,
+                NixarMessageType.MESSAGE_TYPE_PRESENTATION,
+                presentation
+            )
+            print("✅ [WEBHOOK] Presentation Verifier'a gönderildi.")
+            return {"status": "presentation_sent", "encrypted_presentation": encrypted_pres}
+
+        # ── MessageTypePresentation ───────────────────────────────────────────
+        # Holder, kanıt belgesini (Presentation) gönderdi.
+        # Verifier pending_presentation_requests'ten eşleşen talebi bulur ve doğrular.
+        elif msg_type == "MessageTypePresentation":
+            print("📄 [WEBHOOK] Presentation alındı → doğrulanıyor...")
+            pres_nonce = content.get("requested_proof", {}).get("identifiers", [{}])[0].get("timestamp", "")
+            # nonce'u presentation'dan da almayı dene
+            pres_req_nonce = None
+            for k, v in pending_presentation_requests.items():
+                if v["agent_alias"] == agent_alias:
+                    pres_req_nonce = k
+                    break  # en son hazırlanan talebi kullan
+
+            if not pres_req_nonce:
+                return {"status": "error", "reason": "Bekleyen presentation request bulunamadı. Önce /api/v1/verifier/prepare-presentation-request çağırın."}
+
+            pres_request_data = pending_presentation_requests[pres_req_nonce]["presentation_request"]
+            is_valid = agent.verifier_verify_presentation(pres_request_data, content)
+
+            revealed = {}
+            if is_valid:
+                raw_revealed = content.get("requested_proof", {}).get("revealed_attrs", {})
+                revealed = {k: v.get("raw") for k, v in raw_revealed.items()}
+
+            del pending_presentation_requests[pres_req_nonce]
+            print(f"{'✅' if is_valid else '❌'} [WEBHOOK] Presentation doğrulama: {is_valid}")
+            return {"status": "presentation_verified", "is_valid": is_valid, "revealed_data": revealed}
+
+        # ── MessageTypeSimple ─────────────────────────────────────────────────
+        elif msg_type == "MessageTypeSimple":
+            return {"status": "message_received", "content": content, "sender_did": sender_did}
+
+        # ── Bilinmeyen ────────────────────────────────────────────────────────
+        else:
+            print(f"⚠️  [WEBHOOK] Bilinmeyen messageType: {msg_type}")
+            return {"status": "ignored", "reason": f"unsupported_message_type: {msg_type}", "content": decrypted}
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"status": "error", "detail": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
