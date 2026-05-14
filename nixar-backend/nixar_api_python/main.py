@@ -1343,6 +1343,7 @@ def prepare_presentation_request(req: PresentationRequestCreateReq):
     return {"status": "ready", "nonce": nonce, "presentation_request": req.presentation_request}
 
 
+@app.post("/didcomm/{agent_alias}", tags=["Webhook Dinleyicisi"])
 async def didcomm_webhook(agent_alias: str, req: Request):
     """
     Dış dünyadan (telefon, başka sunucu vb.) gelen DIDComm mesajlarını dinleyen webhook endpoint'i.
