@@ -75,3 +75,14 @@ docker run -d --name nixar-api --restart unless-stopped -p 8080:8080 nixar-api:l
 
 # 5. Logları izle
 docker logs -f nixar-api
+
+
+
+docker build --platform linux/amd64 -f openshift-nixar-api/Dockerfile -t nixar-api:latest .
+docker stop nixar-api && docker rm nixar-api
+docker run -d --name nixar-api --restart unless-stopped -p 8080:8080 nixar-api:latest
+
+
+
+docker exec nixar-api ls /app/.tmp/zula-wallet/
+docker exec nixar-api cat /app/.tmp/zula-wallet/ITU.json

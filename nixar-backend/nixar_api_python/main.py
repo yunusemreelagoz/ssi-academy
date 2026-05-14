@@ -193,6 +193,56 @@ def init_agent(req: AgentInitReq):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/v1/network/info", tags=["Kurumsal Cüzdan Yönetimi"])
+def get_network_info():
+    """
+    Sunucunun bağlı olduğu Indy ağı hakkında bilgi döner.
+
+    Genesis dosyasındaki node IP'lerini okuyarak hangi ağa bağlı olunduğunu tespit eder.
+    """
+    genesis_path = os.path.join(os.path.dirname(__file__), "genesis.txn")
+    use_von_network = os.environ.get("USE_VON_NETWORK", "1") == "1"
+
+    nodes = []
+    network_name = "bilinmiyor"
+    try:
+        with open(genesis_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    txn = json.loads(line)
+                    alias = txn.get("txn", {}).get("data", {}).get("data", {}).get("alias", "")
+                    client_ip = txn.get("txn", {}).get("data", {}).get("data", {}).get("client_ip", "")
+                    client_port = txn.get("txn", {}).get("data", {}).get("data", {}).get("client_port", "")
+                    if alias and client_ip:
+                        nodes.append({"alias": alias, "ip": client_ip, "port": client_port})
+                except Exception:
+                    pass
+
+        # IP adresine göre ağı tahmin et
+        ips = {n["ip"] for n in nodes}
+        if "127.0.0.1" in ips or "172." in str(ips):
+            network_name = "von_network (local)"
+        elif "138.197.138.255" in ips:
+            network_name = "BCovrin Test Network"
+        elif "130.107.207.129" in ips:
+            network_name = "SSI Türkiye Testnet"
+        elif nodes:
+            network_name = f"özel ağ ({list(ips)[0]})"
+    except FileNotFoundError:
+        return {"error": "genesis.txn bulunamadı", "genesis_path": genesis_path}
+
+    return {
+        "network_name": network_name,
+        "genesis_path": genesis_path,
+        "use_von_network": use_von_network,
+        "node_count": len(nodes),
+        "nodes": nodes,
+        "active_agents": list(active_agents.keys()),
+    }
+
 @app.get("/api/v1/agents/{alias}/did", tags=["Kurumsal Cüzdan Yönetimi"])
 def get_agent_did(alias: str):
     """
@@ -823,6 +873,42 @@ class InvitationAcceptReq(BaseModel):
     agent_alias: str
     invitation: Dict[str, Any]
 
+class ConnReqCreateReq(BaseModel):
+    agent_alias: str
+    invitation: Dict[str, Any]
+
+@app.post("/api/v1/holder/create-conn-request", tags=["Vatandaş / Öğrenci (Holder)"])
+def holder_create_conn_request(req: ConnReqCreateReq):
+    """
+    Davetiyeden Connection Request üretir fakat karşı tarafa GÖNDERMEZ.
+    Dönen `connection_request` manuel olarak /didcomm/{alias} webhook'una POST edilebilir.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    try:
+        conn_req = agent.connection_create_request(req.invitation, None)
+        return {"connection_request": conn_req}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ConnResAcceptReq(BaseModel):
+    agent_alias: str
+    connection_response: Dict[str, Any]
+
+@app.post("/api/v1/connections/accept-response", tags=["Cihaz Bağlantıları"])
+def accept_connection_response(req: ConnResAcceptReq):
+    """
+    Karşı taraftan (Kurum'dan) gelen Connection Response'u kabul ederek bağlantıyı tamamlar.
+    Webhook üzerinden manuel bağlantı kurulumunda /api/v1/holder/create-conn-request'ten sonra çağrılır.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent: raise HTTPException(status_code=404, detail="Agent aktif değil")
+    try:
+        agent.connection_accept_response(req.connection_response)
+        return {"status": "success", "message": "Bağlantı tamamlandı."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/v1/holder/accept-invitation", tags=["Vatandaş / Öğrenci (Holder)"])
 def holder_accept_invitation(req: InvitationAcceptReq):
     """
@@ -1161,12 +1247,31 @@ async def didcomm_webhook(agent_alias: str, req: Request):
         message_type = body_data.get("@type", "")
 
         if "connections/1.0/request" in message_type:
-            print("🚀 [WEBHOOK] Yeni bir Connection Request alındı!")
+            print("🚀 [WEBHOOK] Yeni bir Connection Request alındı! (@type ile)")
             conn_res = agent.connection_accept_request(body_data, None)
             return conn_res 
             
         elif "connections/1.0/ack" in message_type or "ack" in message_type:
             return {"status": "ok"}
+
+        elif not message_type:
+            # @type alanı yok — önce nixar connection_request olarak dene (nixar conn_req @type içermez)
+            try:
+                print("🚀 [WEBHOOK] @type yok, Connection Request olarak deneniyor...")
+                conn_res = agent.connection_accept_request(body_data, None)
+                print("✅ [WEBHOOK] Connection Request başarıyla kabul edildi.")
+                return {"status": "success", "connection_response": conn_res}
+            except Exception:
+                # Connection request değil, şifreli mesaj olabilir
+                try:
+                    decrypted = agent.connection_decrypt(body_data)
+                    decrypted_content = json.loads(decrypted.get("content", "{}"))
+                    dec_type = decrypted_content.get("@type", "")
+                    if "present-proof" in dec_type and "presentation" in dec_type:
+                        print("📄 [WEBHOOK] İspat Belgesi alındı!")
+                    return {"status": "message_decrypted", "content": decrypted}
+                except Exception as dec_err:
+                    return {"status": "ignored", "reason": "unsupported_message"}
             
         else:
             try:
