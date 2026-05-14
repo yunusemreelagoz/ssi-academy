@@ -44,6 +44,9 @@ RUN mkdir -p /app/.tmp && chown -R 1001:0 /app/.tmp && chmod -R u+rwX,g+rwX /app
 # 7. Python modül yolu
 ENV PYTHONPATH=/app
 
+# Von-Network kullanımı (0=kapalı, 1=açık). Von-Network'e bağlanmak için 1 yapın.
+ENV USE_VON_NETWORK=0
+
 # 8. OpenShift SCC Kuralı: Root ile çalıştırma!
 USER 1001
 
