@@ -350,40 +350,27 @@ def demo_credential_flow():
     print("Credential Request oluşturuldu ✅")
     print(f"  Anahtarlar: {list(cred_req.keys())}")
 
-    # ── ADIM 5: Holder cred_req'i şifreler → /didcomm/ITU'ya gönderir ──
-    print_step("5. Holder CredentialRequest Şifreli Olarak Webhook'a Gönderiyor")
-    res = requests.post(f"{HOLDER_URL}/api/v1/messages/encrypt", json={
-        "agent_alias": HOLDER_ALIAS,
-        "from_did":    holder_my_did,
-        "their_did":   holder_their,
-        "message":     cred_req,
-        "message_type": "credential_request"
+    # ── ADIM 5: Holder cred_req'i doğrudan Kurum'a gönderir ────────────────────
+    print_step("5. Holder Credential Request'i Kurum'a Gönderiyor")
+    issue_res = requests.post(f"{KURUM_URL}/api/v1/issuer/issue-for-request", json={
+        "agent_alias": "ITU",
+        "cred_request": cred_req,
+        "cred_def_id":  cred_def_id
     })
-    encrypted_cred_req = res.json()["encrypted_message"]
+    issue_body = issue_res.json()
+    print(f"Status: {issue_body.get('status')}")
 
-    webhook_res = requests.post(f"{KURUM_URL}/didcomm/ITU", json=encrypted_cred_req)
-    webhook_body = webhook_res.json()
-    print(json.dumps({k: v if k != "encrypted_credential" else "{ ... }" for k, v in webhook_body.items()}, indent=2))
-
-    if webhook_body.get("status") != "credential_issued":
-        print(f"❌ Credential issuance başarısız: {webhook_body}")
+    if issue_body.get("status") != "issued":
+        print(f"❌ Credential issuance başarısız: {issue_body}")
         return
-    encrypted_credential = webhook_body["encrypted_credential"]
+    credential = issue_body["credential"]
+    print("✅ Credential Kurum tarafından imzalandı!")
 
-    # ── ADIM 6: Holder Credential'ı Açar ve Cüzdana Kaydeder ───
-    print_step("6. Holder Credential'ı Açıyor ve Cüzdana Kaydediyor")
-    res = requests.post(f"{HOLDER_URL}/api/v1/messages/decrypt", json={
-        "agent_alias":      HOLDER_ALIAS,
-        "encrypted_message": encrypted_credential
-    })
-    decrypt_resp = res.json()
-    credential_content = decrypt_resp["decrypted_message"]["content"]
-    if isinstance(credential_content, str):
-        credential_content = json.loads(credential_content)
-
+    # ── ADIM 6: Holder Credential'ı Cüzdana Kaydeder ────────────────────────────
+    print_step("6. Holder Credential'ı Cüzdana Kaydediyor")
     res = requests.post(
         f"{HOLDER_URL}/api/v1/holder/store-credential?agent_alias={HOLDER_ALIAS}",
-        json=credential_content
+        json=credential
     )
     print(json.dumps(res.json(), indent=2, ensure_ascii=False))
     print("✅ Diploma cüzdana kaydedildi!")
@@ -409,26 +396,24 @@ def demo_credential_flow():
     })
     print(json.dumps(res.json(), indent=2, ensure_ascii=False))
 
-    # ── ADIM 8: Holder Presentation Üretir ve Webhook'a Gönderir ──
-    print_step("8. Holder Presentation Oluşturuyor → Webhook'a Gönderiyor")
+    # ── ADIM 8: Holder Presentation Oluşturur ve Doğrudan Gönderir ─────────────
+    print_step("8. Holder Presentation Oluşturuyor → Kurum'a Gönderiyor")
     res = requests.post(f"{HOLDER_URL}/api/v1/holder/create-presentation", json={
         "agent_alias": HOLDER_ALIAS,
         "presentation_request": pres_request
     })
-    presentation = res.json()["presentation"]
+    pres_resp = res.json()
+    if "presentation" not in pres_resp:
+        print(f"❌ Presentation oluşturulamadı: {pres_resp}")
+        return
+    presentation = pres_resp["presentation"]
     print("Presentation oluşturuldu ✅")
 
-    res = requests.post(f"{HOLDER_URL}/api/v1/messages/encrypt", json={
-        "agent_alias": HOLDER_ALIAS,
-        "from_did":    holder_my_did,
-        "their_did":   holder_their,
-        "message":     presentation,
-        "message_type": "presentation"
+    verify_res = requests.post(f"{KURUM_URL}/api/v1/verifier/submit-presentation", json={
+        "agent_alias": "ITU",
+        "presentation": presentation
     })
-    encrypted_pres = res.json()["encrypted_message"]
-
-    webhook_res = requests.post(f"{KURUM_URL}/didcomm/ITU", json=encrypted_pres)
-    verify_result = webhook_res.json()
+    verify_result = verify_res.json()
 
     # ── ADIM 9: Sonuç ───────────────────────────────────────────
     print_step("9. Doğrulama Sonucu")

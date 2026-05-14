@@ -714,6 +714,15 @@ class CredentialOfferCreateReq(BaseModel):
     cred_def_id: str
     cred_values: Dict[str, Any]   # {"ad": {"raw": "Ahmet", "encoded": "1"}, ...}
 
+class IssueForRequestReq(BaseModel):
+    agent_alias: str
+    cred_request: Dict[str, Any]
+    cred_def_id: str   # pending_offers'dan doğru kaydı bulmak için
+
+class SubmitPresentationReq(BaseModel):
+    agent_alias: str
+    presentation: Dict[str, Any]
+
 class PresentationRequestCreateReq(BaseModel):
     agent_alias: str
     presentation_request: Dict[str, Any]   # name, version, nonce, requestedAttributes, requestedPredicates
@@ -1343,7 +1352,64 @@ def prepare_presentation_request(req: PresentationRequestCreateReq):
     return {"status": "ready", "nonce": nonce, "presentation_request": req.presentation_request}
 
 
-@app.post("/didcomm/{agent_alias}", tags=["Webhook Dinleyicisi"])
+@app.post("/api/v1/issuer/issue-for-request", tags=["Verici / Üniversite (Issuer)"])
+def issue_for_request(req: IssueForRequestReq):
+    """
+    Holder'dan gelen credential request'e karşılık credential imzalar ve döner.
+    pending_credential_offers'dan cred_def_id ile eşleşen kaydı bulur.
+    Transport şifreleme gerektirmez — credential'ın kendi imzası güvenliği sağlar.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent aktif değil")
+
+    matched = next(
+        (v for v in pending_credential_offers.values()
+         if v["agent_alias"] == req.agent_alias and v["cred_def_id"] == req.cred_def_id),
+        None
+    )
+    if not matched:
+        raise HTTPException(status_code=404, detail="Bu cred_def_id için pending offer bulunamadı. Önce /api/v1/issuer/prepare-offer çağırın.")
+
+    try:
+        cred_info = agent.issuer_create_credential(req.cred_request, matched["cred_values"], matched["issuer_nonce"])
+        del pending_credential_offers[matched["issuer_nonce"]]
+        return {"status": "issued", "credential": cred_info["credential"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/verifier/submit-presentation", tags=["Doğrulayıcı / Banka (Verifier)"])
+def submit_presentation(req: SubmitPresentationReq):
+    """
+    Holder'dan gelen presentation'ı doğrular.
+    pending_presentation_requests'ten agent_alias ile eşleşen en güncel talebi kullanır.
+    Transport şifreleme gerektirmez — ZKP kriptografisi güvenliği sağlar.
+    """
+    agent = active_agents.get(req.agent_alias)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent aktif değil")
+
+    matched_key = next(
+        (k for k, v in pending_presentation_requests.items() if v["agent_alias"] == req.agent_alias),
+        None
+    )
+    if not matched_key:
+        raise HTTPException(status_code=404, detail="Bekleyen presentation request bulunamadı. Önce /api/v1/verifier/prepare-presentation-request çağırın.")
+
+    pres_request = pending_presentation_requests[matched_key]["presentation_request"]
+    try:
+        is_valid = agent.verifier_verify_presentation(pres_request, req.presentation)
+        revealed = {}
+        if is_valid:
+            raw = req.presentation.get("requested_proof", {}).get("revealed_attrs", {})
+            revealed = {k: v.get("raw") for k, v in raw.items()}
+        del pending_presentation_requests[matched_key]
+        return {"status": "verified", "is_valid": is_valid, "revealed_data": revealed}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def didcomm_webhook(agent_alias: str, req: Request):
     """
     Dış dünyadan (telefon, başka sunucu vb.) gelen DIDComm mesajlarını dinleyen webhook endpoint'i.
